@@ -5,6 +5,7 @@
     pkgs.python311Packages.setuptools
     pkgs.python311Packages.wheel
     pkgs.python311Packages.virtualenv
+    pkgs.python311Packages.python-lsp-server
     pkgs.postgresql
     pkgs.sqlite
     pkgs.git
@@ -24,5 +25,6 @@
     PYTHONDONTWRITEBYTECODE = "1";
     PIP_DISABLE_PIP_VERSION_CHECK = "1";
     PIP_NO_CACHE_DIR = "1";
+    REPL_LANGUAGE = "python3";
   };
 }
