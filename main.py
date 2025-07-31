@@ -8,9 +8,32 @@ for Replit deployment.
 
 import os
 import sys
-import uvicorn
+import subprocess
 import logging
 from pathlib import Path
+
+# Check and install dependencies if needed
+def ensure_dependencies():
+    """Ensure required dependencies are installed."""
+    try:
+        import uvicorn
+        import fastapi
+        import pydantic
+    except ImportError as e:
+        print(f"📦 Missing dependency: {e.name}")
+        print("🔧 Installing dependencies...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+            print("✅ Dependencies installed successfully!")
+        except subprocess.CalledProcessError:
+            print("❌ Failed to install dependencies")
+            print("💡 Please run: pip install -r requirements.txt")
+            sys.exit(1)
+
+# Ensure dependencies before importing
+ensure_dependencies()
+
+import uvicorn
 
 # Add project root to Python path
 project_root = Path(__file__).parent
