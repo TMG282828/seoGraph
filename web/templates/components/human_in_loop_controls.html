@@ -1,0 +1,99 @@
+<!-- Human-in-Loop Controls (Context.ai Style) -->
+<div class="card p-4 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold">Content Creation Settings</h3>
+        <div class="flex items-center space-x-3">
+            <!-- Check-in Frequency Control -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" class="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors" style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);" onmouseover="this.style.backgroundColor='var(--bg-tertiary)'" onmouseout="this.style.backgroundColor='var(--bg-secondary)'">
+                    <i class="fas fa-user-clock text-blue-400"></i>
+                    <span class="text-sm font-medium" x-text="humanInLoopSettings.checkinFrequency === 'high' ? 'High Check-ins' : humanInLoopSettings.checkinFrequency === 'medium' ? 'Medium Check-ins' : 'Low Check-ins'"></span>
+                    <i class="fas fa-chevron-down text-xs" :class="{ 'rotate-180': open }"></i>
+                </button>
+                
+                <div x-show="open" @click.away="open = false" x-transition class="absolute top-full right-0 mt-2 w-80 rounded-lg shadow-lg z-50" style="background-color: var(--bg-secondary); border: 1px solid var(--border-color);">
+                    <div class="p-4">
+                        <h4 class="font-medium mb-3" style="color: var(--text-primary);">Check-in Frequency</h4>
+                        <p class="text-sm text-gray-400 mb-4">Control how often the AI checks in with you during content creation</p>
+                        
+                        <div class="space-y-3">
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer transition-colors" :class="humanInLoopSettings.checkinFrequency === 'high' ? 'border-blue-500 bg-blue-500 bg-opacity-10' : ''" style="border-color: var(--border-color);" onmouseover="if(!this.classList.contains('border-blue-500')) this.style.borderColor='var(--border-hover)'" onmouseout="if(!this.classList.contains('border-blue-500')) this.style.borderColor='var(--border-color)'">
+                                <input type="radio" x-model="humanInLoopSettings.checkinFrequency" value="high" class="mr-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-user mr-2 text-blue-500"></i>
+                                        <span class="font-medium">High</span>
+                                    </div>
+                                    <div class="text-sm text-gray-400">Frequent check-ins and questions for you</div>
+                                </div>
+                            </label>
+                            
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer transition-colors" :class="humanInLoopSettings.checkinFrequency === 'medium' ? 'border-blue-500 bg-blue-500 bg-opacity-10' : 'border-gray-600 hover:border-gray-500'">
+                                <input type="radio" x-model="humanInLoopSettings.checkinFrequency" value="medium" class="mr-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-balance-scale mr-2 text-yellow-500"></i>
+                                        <span class="font-medium">Medium</span>
+                                    </div>
+                                    <div class="text-sm text-gray-400">Check-ins when needed</div>
+                                </div>
+                            </label>
+                            
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer transition-colors" :class="humanInLoopSettings.checkinFrequency === 'low' ? 'border-blue-500 bg-blue-500 bg-opacity-10' : 'border-gray-600 hover:border-gray-500'">
+                                <input type="radio" x-model="humanInLoopSettings.checkinFrequency" value="low" class="mr-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-bolt mr-2 text-green-500"></i>
+                                        <span class="font-medium">Low</span>
+                                    </div>
+                                    <div class="text-sm text-gray-400">Fully autonomous operation</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Goals -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" class="flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors" style="background-color: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary);" onmouseover="this.style.backgroundColor='var(--bg-tertiary)'" onmouseout="this.style.backgroundColor='var(--bg-secondary)'">
+                    <i class="fas fa-target text-green-400"></i>
+                    <span class="text-sm font-medium" x-text="contentGoals.primary || 'Set Goals'"></span>
+                    <i class="fas fa-chevron-down text-xs" :class="{ 'rotate-180': open }"></i>
+                </button>
+                
+                <div x-show="open" @click.away="open = false" x-transition class="absolute top-full right-0 mt-2 w-72 rounded-lg shadow-lg z-50" style="background-color: var(--bg-secondary); border: 1px solid var(--border-color);">
+                    <div class="p-4">
+                        <h4 class="font-medium mb-3" style="color: var(--text-primary);">Content Goals</h4>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button @click="contentGoals.primary = 'SEO-Focused'; open = false" class="p-2 text-left border border-gray-600 rounded hover:border-blue-500 transition-colors" :class="contentGoals.primary === 'SEO-Focused' ? 'border-blue-500 bg-blue-500 bg-opacity-10' : ''">
+                                <div class="font-medium text-sm">SEO-Focused</div>
+                                <div class="text-xs text-gray-400">Optimize for search rankings</div>
+                            </button>
+                            <button @click="contentGoals.primary = 'Brand-Focused'; open = false" class="p-2 text-left border border-gray-600 rounded hover:border-blue-500 transition-colors" :class="contentGoals.primary === 'Brand-Focused' ? 'border-blue-500 bg-blue-500 bg-opacity-10' : ''">
+                                <div class="font-medium text-sm">Brand-Focused</div>
+                                <div class="text-xs text-gray-400">Emphasize brand voice</div>
+                            </button>
+                            <button @click="contentGoals.primary = 'Research-Heavy'; open = false" class="p-2 text-left border border-gray-600 rounded hover:border-blue-500 transition-colors" :class="contentGoals.primary === 'Research-Heavy' ? 'border-blue-500 bg-blue-500 bg-opacity-10' : ''">
+                                <div class="font-medium text-sm">Research-Heavy</div>
+                                <div class="text-xs text-gray-400">Data-driven insights</div>
+                            </button>
+                            <button @click="contentGoals.primary = 'Thought Leadership'; open = false" class="p-2 text-left border border-gray-600 rounded hover:border-blue-500 transition-colors" :class="contentGoals.primary === 'Thought Leadership' ? 'border-blue-500 bg-blue-500 bg-opacity-10' : ''">
+                                <div class="font-medium text-sm">Thought Leadership</div>
+                                <div class="text-xs text-gray-400">Industry expertise</div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Aggressiveness -->
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-sliders-h text-purple-400"></i>
+                <span class="text-sm">Agent Power:</span>
+                <input type="range" x-model="humanInLoopSettings.agentAggressiveness" min="1" max="10" class="w-16" title="Agent Aggressiveness">
+                <span class="text-sm font-medium w-6 text-center" x-text="humanInLoopSettings.agentAggressiveness"></span>
+            </div>
+        </div>
+    </div>
+</div>

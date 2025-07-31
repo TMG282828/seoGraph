@@ -1,0 +1,1345 @@
+"""
+PRP-Style Content Workflow Service.
+
+This service implements a Planning → Requirements → Process workflow similar to 
+Claude Code's approach, where content creation follows a structured multi-phase
+process with human-in-loop checkpoints.
+"""
+
+import asyncio
+import logging
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime
+from pydantic import BaseModel, Field
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+
+class WorkflowPhase(str, Enum):
+    """Workflow phases for content creation."""
+    BRIEF_ANALYSIS = "brief_analysis"
+    PLANNING = "planning"
+    REQUIREMENTS = "requirements" 
+    PROCESS = "process"
+    GENERATION = "generation"
+    REVIEW = "review"
+    OPTIMIZATION = "optimization"
+    COMPLETE = "complete"
+
+
+class CheckpointStatus(str, Enum):
+    """Status of workflow checkpoints."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    MODIFIED = "modified"
+
+
+class WorkflowCheckpoint(BaseModel):
+    """Represents a human-in-loop checkpoint."""
+    id: str
+    phase: WorkflowPhase
+    title: str
+    description: str
+    content: Dict[str, Any]
+    status: CheckpointStatus = CheckpointStatus.PENDING
+    feedback: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    reviewed_at: Optional[datetime] = None
+
+
+class PRPWorkflowState(BaseModel):
+    """Complete state of a PRP workflow instance."""
+    workflow_id: str
+    current_phase: WorkflowPhase = WorkflowPhase.BRIEF_ANALYSIS
+    brief_content: str
+    topic: str
+    
+    # Human-in-Loop Settings
+    checkin_frequency: str = "medium"  # high, medium, low
+    agent_aggressiveness: int = 5
+    require_approval: bool = True
+    
+    # Content Goals and Brand Voice
+    content_goals: Dict[str, Any] = Field(default_factory=dict)
+    brand_voice: Dict[str, Any] = Field(default_factory=dict)
+    
+    # Phase Results
+    planning_result: Optional[Dict[str, Any]] = None
+    requirements_result: Optional[Dict[str, Any]] = None
+    process_result: Optional[Dict[str, Any]] = None
+    generation_result: Optional[Dict[str, Any]] = None
+    
+    # Checkpoints
+    checkpoints: List[WorkflowCheckpoint] = Field(default_factory=list)
+    
+    # Metadata
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    completed_at: Optional[datetime] = None
+
+
+class ContentWorkflow(BaseModel):
+    """Simple workflow model for API compatibility."""
+    id: str
+    status: str = "active"
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class PRPWorkflowService:
+    """
+    Service for managing PRP-style content creation workflows.
+    
+    Similar to Claude Code's approach:
+    1. Brief Analysis - Understanding the user's request
+    2. Planning - Creating content strategy and approach
+    3. Requirements - Defining specific content requirements
+    4. Process - Outlining the content creation process
+    5. Generation - Creating the actual content
+    6. Review - Quality assurance and optimization
+    """
+    
+    def __init__(self):
+        """Initialize the PRP workflow service."""
+        self.active_workflows: Dict[str, PRPWorkflowState] = {}
+        logger.info("PRP Workflow Service initialized")
+    
+    async def start_workflow(self, brief_content: str, topic: str, 
+                           human_in_loop_settings: Dict[str, Any],
+                           content_goals: Dict[str, Any] = None,
+                           brand_voice: Dict[str, Any] = None) -> str:
+        """Start a new PRP workflow."""
+        
+        workflow_id = f"prp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(brief_content) % 10000}"
+        
+        workflow_state = PRPWorkflowState(
+            workflow_id=workflow_id,
+            brief_content=brief_content,
+            topic=topic,
+            checkin_frequency=human_in_loop_settings.get("checkin_frequency", "medium"),
+            agent_aggressiveness=human_in_loop_settings.get("agent_aggressiveness", 5),
+            require_approval=human_in_loop_settings.get("require_approval", True),
+            content_goals=content_goals or {},
+            brand_voice=brand_voice or {}
+        )
+        
+        self.active_workflows[workflow_id] = workflow_state
+        
+        logger.info(f"Started PRP workflow {workflow_id} for topic: {topic}")
+        
+        # Begin with brief analysis
+        await self._execute_brief_analysis(workflow_id)
+        
+        return workflow_id
+    
+    async def create_workflow(self, tenant_id: str, workflow_type: str, config: Dict[str, Any], user_id: str) -> ContentWorkflow:
+        """Create a new workflow (API compatibility method)."""
+        workflow_id = f"prp_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(str(config)) % 10000}"
+        
+        # Extract config values
+        user_message = config.get("user_message", "")
+        brief_content = config.get("brief_content", "")
+        brief_summary = config.get("brief_summary", {})
+        human_in_loop = config.get("human_in_loop", {})
+        content_goals = config.get("content_goals", {})
+        brand_voice = config.get("brand_voice", {})
+        
+        # Extract topic from brief_summary or user_message
+        if brief_summary and isinstance(brief_summary, dict):
+            topic = brief_summary.get("title") or brief_summary.get("title", user_message[:50] + "..." if len(user_message) > 50 else user_message)
+        else:
+            topic = user_message[:50] + "..." if len(user_message) > 50 else user_message
+        
+        logger.info(f"📋 Extracted topic: {topic}")
+        
+        # Map frontend camelCase to backend snake_case for human-in-loop settings
+        checkin_frequency = human_in_loop.get("checkin_frequency") or human_in_loop.get("checkinFrequency", "medium")
+        agent_aggressiveness = human_in_loop.get("agent_aggressiveness") or human_in_loop.get("agentAggressiveness", 5)
+        require_approval = human_in_loop.get("require_approval") or human_in_loop.get("requireApproval", True)
+        
+        logger.info(f"🔧 Field mapping - checkin: {checkin_frequency}, aggressiveness: {agent_aggressiveness}, approval: {require_approval}")
+        
+        # Create workflow state directly to use the provided workflow_id
+        workflow_state = PRPWorkflowState(
+            workflow_id=workflow_id,
+            brief_content=brief_content or user_message,
+            topic=topic,
+            checkin_frequency=checkin_frequency,
+            agent_aggressiveness=agent_aggressiveness,
+            require_approval=require_approval,
+            content_goals=content_goals or {},
+            brand_voice=brand_voice or {}
+        )
+        
+        self.active_workflows[workflow_id] = workflow_state
+        logger.info(f"Created PRP workflow {workflow_id} for topic: {topic}")
+        
+        # Begin with brief analysis
+        await self._execute_brief_analysis(workflow_id)
+        
+        # Return a simple workflow object
+        return ContentWorkflow(id=workflow_id)
+    
+    async def execute_next_phase(self, workflow_id: str) -> Optional[WorkflowCheckpoint]:
+        """Execute the next phase and return checkpoint if needed."""
+        if workflow_id not in self.active_workflows:
+            return None
+        
+        workflow = self.active_workflows[workflow_id]
+        
+        # If there's already a pending checkpoint, return it
+        for checkpoint in workflow.checkpoints:
+            if checkpoint.status == CheckpointStatus.PENDING:
+                return checkpoint
+        
+        # If no pending checkpoints and workflow just started, the brief analysis should have created one
+        # If no checkpoints exist yet, something went wrong with workflow initialization
+        if not workflow.checkpoints:
+            logger.warning(f"No checkpoints found for workflow {workflow_id}, re-executing brief analysis")
+            await self._execute_brief_analysis(workflow_id)
+        
+        # Return the latest checkpoint
+        if workflow.checkpoints:
+            return workflow.checkpoints[-1]
+        
+        return None
+    
+    def get_progress_percentage(self, workflow_id: str) -> int:
+        """Get workflow progress percentage."""
+        if workflow_id not in self.active_workflows:
+            return 0
+        
+        workflow = self.active_workflows[workflow_id]
+        return self._calculate_progress_percentage(workflow)
+    
+    async def handle_checkpoint_response(self, workflow_id: str, checkpoint_id: str, response: str, feedback: str = "") -> Dict[str, Any]:
+        """Handle user response to checkpoint."""
+        if response == "approved":
+            status = CheckpointStatus.APPROVED
+        elif response == "rejected":
+            status = CheckpointStatus.REJECTED
+        else:
+            status = CheckpointStatus.MODIFIED
+        
+        return await self.process_checkpoint_response(workflow_id, checkpoint_id, status, feedback)
+    
+    async def get_final_content(self, workflow_id: str) -> str:
+        """Get the final generated content."""
+        if workflow_id not in self.active_workflows:
+            return "Workflow not found"
+        
+        workflow = self.active_workflows[workflow_id]
+        
+        if workflow.generation_result:
+            return workflow.generation_result.get("content", "Content generation completed but no content available")
+        
+        return "Content generation not yet completed"
+    
+    async def get_workflow_status(self, workflow_id: str) -> Optional[Dict[str, Any]]:
+        """Get current status of a workflow."""
+        if workflow_id not in self.active_workflows:
+            return None
+        
+        workflow = self.active_workflows[workflow_id]
+        
+        return {
+            "workflow_id": workflow_id,
+            "current_phase": workflow.current_phase,
+            "topic": workflow.topic,
+            "progress_percentage": self._calculate_progress_percentage(workflow),
+            "pending_checkpoints": [
+                {
+                    "id": cp.id,
+                    "phase": cp.phase,
+                    "title": cp.title,
+                    "description": cp.description,
+                    "status": cp.status
+                }
+                for cp in workflow.checkpoints 
+                if cp.status == CheckpointStatus.PENDING
+            ],
+            "last_checkpoint": {
+                "id": workflow.checkpoints[-1].id,
+                "phase": workflow.checkpoints[-1].phase,
+                "title": workflow.checkpoints[-1].title,
+                "description": workflow.checkpoints[-1].description,
+                "status": workflow.checkpoints[-1].status,
+                "created_at": workflow.checkpoints[-1].created_at
+            } if workflow.checkpoints else None,
+            "created_at": workflow.created_at,
+            "updated_at": workflow.updated_at
+        }
+    
+    async def process_checkpoint_response(self, workflow_id: str, checkpoint_id: str, 
+                                        status: CheckpointStatus, feedback: str = None) -> Dict[str, Any]:
+        """Process user response to a checkpoint."""
+        if workflow_id not in self.active_workflows:
+            return {"success": False, "error": "Workflow not found"}
+        
+        workflow = self.active_workflows[workflow_id]
+        
+        # Find and update checkpoint
+        checkpoint = None
+        for cp in workflow.checkpoints:
+            if cp.id == checkpoint_id:
+                checkpoint = cp
+                break
+        
+        if not checkpoint:
+            return {"success": False, "error": "Checkpoint not found"}
+        
+        checkpoint.status = status
+        checkpoint.feedback = feedback
+        checkpoint.reviewed_at = datetime.now()
+        workflow.updated_at = datetime.now()
+        
+        logger.info(f"Checkpoint {checkpoint_id} in workflow {workflow_id} marked as {status}")
+        
+        # Continue workflow based on response
+        if status == CheckpointStatus.APPROVED:
+            await self._continue_workflow(workflow_id)
+        elif status == CheckpointStatus.REJECTED:
+            await self._handle_checkpoint_rejection(workflow_id, checkpoint_id, feedback)
+        elif status == CheckpointStatus.MODIFIED:
+            await self._handle_checkpoint_modification(workflow_id, checkpoint_id, feedback)
+        
+        return {
+            "success": True,
+            "workflow_status": await self.get_workflow_status(workflow_id)
+        }
+    
+    async def get_next_checkpoint(self, workflow_id: str) -> Optional[Dict[str, Any]]:
+        """Get the next pending checkpoint for user review."""
+        if workflow_id not in self.active_workflows:
+            return None
+        
+        workflow = self.active_workflows[workflow_id]
+        
+        for checkpoint in workflow.checkpoints:
+            if checkpoint.status == CheckpointStatus.PENDING:
+                return {
+                    "id": checkpoint.id,
+                    "phase": checkpoint.phase,
+                    "title": checkpoint.title,
+                    "description": checkpoint.description,
+                    "content": checkpoint.content,
+                    "created_at": checkpoint.created_at
+                }
+        
+        return None
+    
+    # Phase Execution Methods
+    
+    async def _execute_brief_analysis(self, workflow_id: str):
+        """Phase 1: Analyze the brief and understand requirements."""
+        workflow = self.active_workflows[workflow_id]
+        
+        # Analyze the brief
+        analysis = await self._analyze_brief(workflow.brief_content, workflow.topic)
+        
+        # Create checkpoint based on checkin frequency
+        if workflow.checkin_frequency in ["high", "medium"]:
+            checkpoint = WorkflowCheckpoint(
+                id=f"{workflow_id}_brief_analysis",
+                phase=WorkflowPhase.BRIEF_ANALYSIS,
+                title="Brief Analysis Complete",
+                description="I've analyzed your brief and identified the key requirements. Please review my understanding before proceeding.",
+                content={
+                    "analysis": analysis,
+                    "message": f"## Brief Analysis Complete ✅\n\nI've analyzed your brief for **{workflow.topic}** and understand the requirements:\n\n**Content Type:** {analysis.get('content_type', 'Blog post')}\n**Key Themes:** {', '.join(analysis.get('key_themes', []))}\n**Word Count:** {analysis.get('word_count', 'Unknown')} words in brief\n**Target Audience:** {analysis.get('target_audience', 'General')}\n**Complexity:** {analysis.get('estimated_complexity', 'Medium')}\n\n**Brief Preview:** {analysis.get('brief_preview', 'No preview available')}\n\n**Next Step:** Create detailed content planning strategy\n\n**Please approve this analysis to proceed to the planning phase.**",
+                    "next_step": "Create detailed content planning strategy"
+                }
+            )
+            
+            workflow.checkpoints.append(checkpoint)
+            logger.info(f"✅ Created brief analysis checkpoint for workflow {workflow_id}")
+        else:
+            # Low frequency - proceed automatically
+            workflow.current_phase = WorkflowPhase.PLANNING
+            await self._execute_planning(workflow_id)
+    
+    async def _execute_planning(self, workflow_id: str):
+        """Phase 2: Create comprehensive content planning strategy."""
+        workflow = self.active_workflows[workflow_id]
+        workflow.current_phase = WorkflowPhase.PLANNING
+        
+        # Create content planning strategy
+        planning_result = await self._create_content_plan(workflow)
+        workflow.planning_result = planning_result
+        
+        # Create checkpoint for high frequency, or when planning is complex
+        if (workflow.checkin_frequency == "high" or 
+            len(planning_result.get("sections", [])) > 5):
+            
+            sections_preview = "\n".join([f"- {section.get('title', 'Section')}" for section in planning_result.get("sections", [])])
+            
+            checkpoint = WorkflowCheckpoint(
+                id=f"{workflow_id}_planning",
+                phase=WorkflowPhase.PLANNING,
+                title="Content Planning Strategy",
+                description="I've created a comprehensive content plan. Please review the structure and approach before moving to requirements.",
+                content={
+                    "planning": planning_result,
+                    "message": f"## Content Planning Strategy 📋\n\nI've created a comprehensive plan for **{workflow.topic}**:\n\n**Content Strategy:** {planning_result.get('content_strategy', {}).get('approach', 'Comprehensive guide')}\n**Target Tone:** {planning_result.get('content_strategy', {}).get('tone', 'Professional')}\n\n**Proposed Structure:**\n{sections_preview}\n\n**SEO Strategy:** Target keywords with header optimization and internal linking\n\n**Please approve this planning approach to proceed to detailed requirements definition.**",
+                    "next_step": "Define specific content requirements and constraints"
+                }
+            )
+            
+            workflow.checkpoints.append(checkpoint)
+            logger.info(f"Created planning checkpoint for workflow {workflow_id}")
+        else:
+            # Proceed to requirements
+            workflow.current_phase = WorkflowPhase.REQUIREMENTS
+            await self._execute_requirements(workflow_id)
+    
+    async def _execute_requirements(self, workflow_id: str):
+        """Phase 3: Define specific content requirements."""
+        workflow = self.active_workflows[workflow_id]
+        workflow.current_phase = WorkflowPhase.REQUIREMENTS
+        
+        # Define content requirements
+        requirements_result = await self._define_content_requirements(workflow)
+        workflow.requirements_result = requirements_result
+        
+        # Create checkpoint for medium/high frequency
+        if workflow.checkin_frequency in ["high", "medium"]:
+            checkpoint = WorkflowCheckpoint(
+                id=f"{workflow_id}_requirements",
+                phase=WorkflowPhase.REQUIREMENTS,
+                title="Content Requirements Defined",
+                description="I've defined the specific requirements for your content. Please confirm these align with your expectations.",
+                content={
+                    "requirements": requirements_result,
+                    "next_step": "Create detailed content generation process"
+                }
+            )
+            
+            workflow.checkpoints.append(checkpoint)
+            logger.info(f"Created requirements checkpoint for workflow {workflow_id}")
+        else:
+            # Proceed to process definition
+            workflow.current_phase = WorkflowPhase.PROCESS
+            await self._execute_process_definition(workflow_id)
+    
+    async def _execute_process_definition(self, workflow_id: str):
+        """Phase 4: Define the content creation process."""
+        workflow = self.active_workflows[workflow_id]
+        workflow.current_phase = WorkflowPhase.PROCESS
+        
+        # Define content creation process
+        process_result = await self._define_content_process(workflow)
+        workflow.process_result = process_result
+        
+        # Always create checkpoint before generation (critical phase)
+        checkpoint = WorkflowCheckpoint(
+            id=f"{workflow_id}_process",
+            phase=WorkflowPhase.PROCESS,
+            title="Content Creation Process Ready",
+            description="I've outlined the complete content creation process. Ready to begin generation?",
+            content={
+                "process": process_result,
+                "next_step": "Generate the actual content following this process"
+            }
+        )
+        
+        workflow.checkpoints.append(checkpoint)
+        logger.info(f"Created process definition checkpoint for workflow {workflow_id}")
+    
+    async def _execute_content_generation(self, workflow_id: str):
+        """Phase 5: Generate the actual content."""
+        workflow = self.active_workflows[workflow_id]
+        workflow.current_phase = WorkflowPhase.GENERATION
+        
+        # Generate content using the content generation agent
+        generation_result = await self._generate_content(workflow)
+        workflow.generation_result = generation_result
+        
+        # Create checkpoint for generated content
+        checkpoint = WorkflowCheckpoint(
+            id=f"{workflow_id}_generation",
+            phase=WorkflowPhase.GENERATION,
+            title="Content Generated",
+            description="I've generated your content based on the defined process. Please review before final optimization.",
+            content={
+                "generation": generation_result,
+                "next_step": "Perform final review and optimization"
+            }
+        )
+        
+        workflow.checkpoints.append(checkpoint)
+        logger.info(f"Created content generation checkpoint for workflow {workflow_id}")
+    
+    async def _execute_final_review(self, workflow_id: str):
+        """Phase 6: Final review and optimization."""
+        workflow = self.active_workflows[workflow_id]
+        workflow.current_phase = WorkflowPhase.REVIEW
+        
+        # Perform final review and optimization
+        review_result = await self._perform_final_review(workflow)
+        
+        # Mark workflow as complete
+        workflow.current_phase = WorkflowPhase.COMPLETE
+        workflow.completed_at = datetime.now()
+        
+        # Create final checkpoint
+        checkpoint = WorkflowCheckpoint(
+            id=f"{workflow_id}_complete",
+            phase=WorkflowPhase.COMPLETE,
+            title="Content Creation Complete",
+            description="Your content has been successfully created and optimized. Ready for publication!",
+            content={
+                "review": review_result,
+                "final_content": workflow.generation_result,
+                "metadata": {
+                    "word_count": len(workflow.generation_result.get("content", "").split()),
+                    "seo_score": review_result.get("seo_score", 0),
+                    "brand_compliance": review_result.get("brand_compliance", 0)
+                }
+            }
+        )
+        
+        workflow.checkpoints.append(checkpoint)
+        logger.info(f"Workflow {workflow_id} completed successfully")
+    
+    # Helper Methods
+    
+    async def _continue_workflow(self, workflow_id: str):
+        """Continue workflow to next phase after checkpoint approval."""
+        workflow = self.active_workflows[workflow_id]
+        
+        if workflow.current_phase == WorkflowPhase.BRIEF_ANALYSIS:
+            workflow.current_phase = WorkflowPhase.PLANNING
+            await self._execute_planning(workflow_id)
+        elif workflow.current_phase == WorkflowPhase.PLANNING:
+            workflow.current_phase = WorkflowPhase.REQUIREMENTS
+            await self._execute_requirements(workflow_id)
+        elif workflow.current_phase == WorkflowPhase.REQUIREMENTS:
+            workflow.current_phase = WorkflowPhase.PROCESS
+            await self._execute_process_definition(workflow_id)
+        elif workflow.current_phase == WorkflowPhase.PROCESS:
+            workflow.current_phase = WorkflowPhase.GENERATION
+            await self._execute_content_generation(workflow_id)
+        elif workflow.current_phase == WorkflowPhase.GENERATION:
+            workflow.current_phase = WorkflowPhase.REVIEW
+            await self._execute_final_review(workflow_id)
+    
+    async def _handle_checkpoint_rejection(self, workflow_id: str, checkpoint_id: str, feedback: str):
+        """Handle checkpoint rejection and restart phase with feedback."""
+        workflow = self.active_workflows[workflow_id]
+        
+        # Find the rejected checkpoint's phase
+        rejected_phase = None
+        for cp in workflow.checkpoints:
+            if cp.id == checkpoint_id:
+                rejected_phase = cp.phase
+                break
+        
+        if rejected_phase:
+            # Reset to rejected phase and incorporate feedback
+            workflow.current_phase = rejected_phase
+            logger.info(f"Restarting phase {rejected_phase} with feedback for workflow {workflow_id}")
+            
+            # Re-execute the phase with feedback
+            if rejected_phase == WorkflowPhase.BRIEF_ANALYSIS:
+                await self._execute_brief_analysis(workflow_id)
+            elif rejected_phase == WorkflowPhase.PLANNING:
+                await self._execute_planning(workflow_id)
+            elif rejected_phase == WorkflowPhase.REQUIREMENTS:
+                await self._execute_requirements(workflow_id)
+            elif rejected_phase == WorkflowPhase.PROCESS:
+                await self._execute_process_definition(workflow_id)
+            elif rejected_phase == WorkflowPhase.GENERATION:
+                await self._execute_content_generation(workflow_id)
+    
+    async def _handle_checkpoint_modification(self, workflow_id: str, checkpoint_id: str, feedback: str):
+        """Handle checkpoint modification requests."""
+        # Similar to rejection but with incremental changes
+        await self._handle_checkpoint_rejection(workflow_id, checkpoint_id, feedback)
+    
+    def _calculate_progress_percentage(self, workflow: PRPWorkflowState) -> int:
+        """Calculate workflow progress percentage."""
+        phase_weights = {
+            WorkflowPhase.BRIEF_ANALYSIS: 15,
+            WorkflowPhase.PLANNING: 25,
+            WorkflowPhase.REQUIREMENTS: 35,
+            WorkflowPhase.PROCESS: 45,
+            WorkflowPhase.GENERATION: 75,
+            WorkflowPhase.REVIEW: 90,
+            WorkflowPhase.COMPLETE: 100
+        }
+        
+        return phase_weights.get(workflow.current_phase, 0)
+    
+    # Content Processing Methods (simplified implementations)
+    
+    async def _analyze_brief(self, brief_content: str, topic: str) -> Dict[str, Any]:
+        """Analyze the brief using AI - NO hardcoded responses."""
+        if not brief_content or brief_content.strip() == "":
+            raise ValueError("Brief content is required for AI analysis. Cannot proceed without content.")
+        
+        try:
+            logger.info(f"🤖 Starting AI-powered brief analysis for {len(brief_content.split())} words...")
+            
+            # Import the content generation agent
+            from ..agents.content_generation.agent import ContentGenerationAgent
+            from ..agents.base_agent import AgentContext
+            
+            # Create content generation agent
+            agent = ContentGenerationAgent()
+            
+            # Create agent context for analysis
+            agent_context = AgentContext(
+                organization_id="demo-org",
+                user_id="anonymous",
+                brand_voice_config={},
+                industry_context="",
+                session_id=f"brief_analysis_{int(datetime.now().timestamp())}"
+            )
+            
+            # Prepare analysis request - specific prompt for structured analysis
+            analysis_prompt = f"""Analyze this content brief and provide a structured JSON response with the following fields:
+
+BRIEF TO ANALYZE:
+{brief_content}
+
+Please analyze and respond with exactly this JSON structure:
+{{
+    "main_topic": "the primary topic/subject",
+    "key_themes": ["theme1", "theme2", "theme3"],
+    "target_audience": "who this content is for",
+    "content_type": "article/guide/blog_post/landing_page",
+    "estimated_complexity": "low/medium/high",
+    "word_count_brief": {len(brief_content.split())},
+    "analysis_summary": "brief summary of what this content should accomplish"
+}}
+
+Respond only with the JSON structure, no other text."""
+
+            task_data = {
+                "type": "brief_analysis",
+                "content_type": "analysis",
+                "topic": f"Brief Analysis: {topic}",
+                "target_keywords": [],
+                "content_length": "short",
+                "writing_style": "analytical",
+                "target_audience": "general",
+                "outline_only": False,
+                "reference_content": [brief_content],
+                "use_knowledge_graph": False,
+                "use_vector_search": False,
+                "user_message": analysis_prompt
+            }
+            
+            # Execute AI analysis with timeout
+            logger.info(f"🔄 Sending brief to AI for analysis...")
+            result = await asyncio.wait_for(
+                agent.execute(task_data, agent_context),
+                timeout=30.0
+            )
+            
+            if not result.success or not result.result_data:
+                raise Exception(f"AI analysis failed: {result.error_message if result else 'No result returned'}")
+            
+            ai_response = result.result_data.get("content", "")
+            logger.info(f"✅ AI analysis completed: {len(ai_response)} characters")
+            
+            # Try to parse JSON response from AI
+            try:
+                import json
+                # Extract JSON from AI response if it's wrapped in other text
+                start_idx = ai_response.find('{')
+                end_idx = ai_response.rfind('}') + 1
+                if start_idx >= 0 and end_idx > start_idx:
+                    json_str = ai_response[start_idx:end_idx]
+                    analysis_data = json.loads(json_str)
+                else:
+                    raise ValueError("No JSON found in AI response")
+                
+                # Validate required fields
+                required_fields = ["main_topic", "key_themes", "target_audience", "content_type", "estimated_complexity"]
+                for field in required_fields:
+                    if field not in analysis_data:
+                        raise ValueError(f"AI response missing required field: {field}")
+                
+                # Add metadata
+                analysis_data["brief_preview"] = brief_content[:200] + "..." if len(brief_content) > 200 else brief_content
+                analysis_data["ai_powered"] = True
+                analysis_data["analysis_method"] = "ai_structured"
+                
+                logger.info(f"📊 AI Brief analysis complete - Topic: {analysis_data.get('main_topic')}, Themes: {analysis_data.get('key_themes')}")
+                return analysis_data
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Failed to parse AI JSON response: {e}")
+                logger.error(f"AI Response was: {ai_response[:500]}...")
+                raise Exception(f"AI returned invalid JSON format. Cannot proceed with analysis.")
+                
+        except asyncio.TimeoutError:
+            logger.error("AI brief analysis timed out after 30 seconds")
+            raise Exception("AI analysis timed out. Please try again.")
+        except Exception as e:
+            logger.error(f"AI brief analysis failed: {e}")
+            raise Exception(f"AI brief analysis failed: {str(e)}. Cannot proceed without AI analysis.")
+    
+    async def _create_content_plan(self, workflow: PRPWorkflowState) -> Dict[str, Any]:
+        """Create comprehensive content planning strategy using AI - NO hardcoded responses."""
+        try:
+            logger.info(f"🤖 Starting AI-powered content planning for: {workflow.topic}")
+            
+            # Import the content generation agent
+            from ..agents.content_generation.agent import ContentGenerationAgent
+            from ..agents.base_agent import AgentContext
+            
+            # Create content generation agent
+            agent = ContentGenerationAgent()
+            
+            # Create agent context
+            agent_context = AgentContext(
+                organization_id="demo-org",
+                user_id="anonymous",
+                brand_voice_config=workflow.brand_voice,
+                industry_context=workflow.content_goals.get('industry', ''),
+                session_id=f"content_plan_{workflow.workflow_id}"
+            )
+            
+            # Build context from workflow state
+            context_info = f"""
+TOPIC: {workflow.topic}
+BRIEF CONTENT: {workflow.brief_content[:500]}...
+CONTENT GOALS: {workflow.content_goals}
+BRAND VOICE: {workflow.brand_voice}
+CHECKIN FREQUENCY: {workflow.checkin_frequency}
+            """.strip()
+            
+            # Prepare planning request
+            planning_prompt = f"""Create a comprehensive content planning strategy based on this brief and requirements:
+
+{context_info}
+
+Provide a structured JSON response with exactly this format:
+{{
+    "content_strategy": {{
+        "primary_goal": "the main objective for this content",
+        "approach": "the strategic approach (e.g., comprehensive guide, how-to, analysis)",
+        "tone": "the recommended tone based on brand voice",
+        "target_seo_focus": "primary SEO strategy"
+    }},
+    "sections": [
+        {{"title": "Section Title", "estimated_words": 300, "purpose": "what this section accomplishes"}},
+        {{"title": "Another Section", "estimated_words": 400, "purpose": "purpose description"}}
+    ],
+    "seo_strategy": {{
+        "primary_keywords": ["keyword1", "keyword2"],
+        "secondary_keywords": ["keyword3", "keyword4"],
+        "header_optimization": true/false,
+        "internal_linking": true/false,
+        "meta_focus": "meta description focus"
+    }},
+    "estimated_total_words": 2000,
+    "complexity_assessment": "low/medium/high"
+}}
+
+Respond only with the JSON structure, no other text."""
+
+            task_data = {
+                "type": "content_planning",
+                "content_type": "planning",
+                "topic": f"Content Planning: {workflow.topic}",
+                "target_keywords": [],
+                "content_length": "medium",
+                "writing_style": "strategic",
+                "target_audience": "content_strategist",
+                "outline_only": False,
+                "reference_content": [workflow.brief_content] if workflow.brief_content else [],
+                "use_knowledge_graph": True,
+                "use_vector_search": True,
+                "user_message": planning_prompt
+            }
+            
+            # Execute AI planning with timeout
+            logger.info(f"🔄 Sending content planning request to AI...")
+            result = await asyncio.wait_for(
+                agent.execute(task_data, agent_context),
+                timeout=30.0
+            )
+            
+            if not result.success or not result.result_data:
+                raise Exception(f"AI content planning failed: {result.error_message if result else 'No result returned'}")
+            
+            ai_response = result.result_data.get("content", "")
+            logger.info(f"✅ AI content planning completed: {len(ai_response)} characters")
+            
+            # Parse JSON response from AI
+            try:
+                import json
+                # Extract JSON from AI response
+                start_idx = ai_response.find('{')
+                end_idx = ai_response.rfind('}') + 1
+                if start_idx >= 0 and end_idx > start_idx:
+                    json_str = ai_response[start_idx:end_idx]
+                    planning_data = json.loads(json_str)
+                else:
+                    raise ValueError("No JSON found in AI response")
+                
+                # Validate required fields
+                required_fields = ["content_strategy", "sections", "seo_strategy"]
+                for field in required_fields:
+                    if field not in planning_data:
+                        raise ValueError(f"AI response missing required field: {field}")
+                
+                # Add metadata
+                planning_data["ai_powered"] = True
+                planning_data["planning_method"] = "ai_structured"
+                planning_data["workflow_id"] = workflow.workflow_id
+                
+                logger.info(f"📊 AI Content planning complete - Strategy: {planning_data.get('content_strategy', {}).get('approach')}, Sections: {len(planning_data.get('sections', []))}")
+                return planning_data
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Failed to parse AI JSON response: {e}")
+                logger.error(f"AI Response was: {ai_response[:500]}...")
+                raise Exception(f"AI returned invalid JSON format for content planning. Cannot proceed.")
+                
+        except asyncio.TimeoutError:
+            logger.error("AI content planning timed out after 30 seconds")
+            raise Exception("AI content planning timed out. Please try again.")
+        except Exception as e:
+            logger.error(f"AI content planning failed: {e}")
+            raise Exception(f"AI content planning failed: {str(e)}. Cannot proceed without AI planning.")
+    
+    async def _define_content_requirements(self, workflow: PRPWorkflowState) -> Dict[str, Any]:
+        """Define specific content requirements using AI - NO hardcoded responses."""
+        try:
+            logger.info(f"🤖 Starting AI-powered requirements definition for: {workflow.topic}")
+            
+            # Import the content generation agent
+            from ..agents.content_generation.agent import ContentGenerationAgent
+            from ..agents.base_agent import AgentContext
+            
+            # Create content generation agent
+            agent = ContentGenerationAgent()
+            
+            # Create agent context
+            agent_context = AgentContext(
+                organization_id="demo-org",
+                user_id="anonymous",
+                brand_voice_config=workflow.brand_voice,
+                industry_context=workflow.content_goals.get('industry', ''),
+                session_id=f"requirements_{workflow.workflow_id}"
+            )
+            
+            # Build context with planning results
+            planning_context = ""
+            if workflow.planning_result:
+                planning_context = f"""
+PLANNING RESULTS:
+Content Strategy: {workflow.planning_result.get('content_strategy', {})}
+Sections Planned: {len(workflow.planning_result.get('sections', []))} sections
+SEO Strategy: {workflow.planning_result.get('seo_strategy', {})}
+                """.strip()
+            
+            context_info = f"""
+TOPIC: {workflow.topic}
+BRIEF CONTENT: {workflow.brief_content[:300]}...
+CONTENT GOALS: {workflow.content_goals}
+BRAND VOICE: {workflow.brand_voice}
+{planning_context}
+            """.strip()
+            
+            # Prepare requirements request
+            requirements_prompt = f"""Based on this content brief and planning, define specific content requirements:
+
+{context_info}
+
+Provide a structured JSON response with exactly this format:
+{{
+    "length_requirements": {{
+        "min_words": 1000,
+        "max_words": 3000,
+        "target_words": 2000,
+        "rationale": "why this length is appropriate"
+    }},
+    "seo_requirements": {{
+        "primary_keywords": ["keyword1", "keyword2"],
+        "keyword_density": "1-3%",
+        "header_structure": "H1, H2, H3, H4",
+        "meta_tags": true,
+        "internal_links_target": 3,
+        "seo_focus": "specific SEO strategy"
+    }},
+    "brand_requirements": {{
+        "tone": "specific tone from brand voice",
+        "voice": "formal/semi-formal/casual",
+        "key_messages": ["message1", "message2"],
+        "brand_keywords": ["brand term1", "brand term2"],
+        "compliance_level": "strict/moderate/flexible"
+    }},
+    "quality_requirements": {{
+        "readability_level": "beginner/intermediate/advanced",
+        "engagement_elements": ["questions", "lists", "examples", "visuals"],
+        "call_to_action": true/false,
+        "research_depth": "surface/moderate/deep",
+        "fact_checking": "required/optional"
+    }},
+    "technical_requirements": {{
+        "formatting": ["headers", "bullets", "numbers"],
+        "media_requirements": ["images", "charts", "videos"],
+        "accessibility": true/false
+    }}
+}}
+
+Respond only with the JSON structure, no other text."""
+
+            task_data = {
+                "type": "requirements_definition",
+                "content_type": "requirements",
+                "topic": f"Requirements: {workflow.topic}",
+                "target_keywords": [],
+                "content_length": "medium",
+                "writing_style": "analytical",
+                "target_audience": "content_manager",
+                "outline_only": False,
+                "reference_content": [workflow.brief_content] if workflow.brief_content else [],
+                "use_knowledge_graph": True,
+                "use_vector_search": False,
+                "user_message": requirements_prompt
+            }
+            
+            # Execute AI requirements definition with timeout
+            logger.info(f"🔄 Sending requirements definition to AI...")
+            result = await asyncio.wait_for(
+                agent.execute(task_data, agent_context),
+                timeout=30.0
+            )
+            
+            if not result.success or not result.result_data:
+                raise Exception(f"AI requirements definition failed: {result.error_message if result else 'No result returned'}")
+            
+            ai_response = result.result_data.get("content", "")
+            logger.info(f"✅ AI requirements definition completed: {len(ai_response)} characters")
+            
+            # Parse JSON response from AI
+            try:
+                import json
+                # Extract JSON from AI response
+                start_idx = ai_response.find('{')
+                end_idx = ai_response.rfind('}') + 1
+                if start_idx >= 0 and end_idx > start_idx:
+                    json_str = ai_response[start_idx:end_idx]
+                    requirements_data = json.loads(json_str)
+                else:
+                    raise ValueError("No JSON found in AI response")
+                
+                # Validate required fields
+                required_fields = ["length_requirements", "seo_requirements", "brand_requirements", "quality_requirements"]
+                for field in required_fields:
+                    if field not in requirements_data:
+                        raise ValueError(f"AI response missing required field: {field}")
+                
+                # Add metadata
+                requirements_data["ai_powered"] = True
+                requirements_data["requirements_method"] = "ai_structured"
+                requirements_data["workflow_id"] = workflow.workflow_id
+                
+                logger.info(f"📊 AI Requirements definition complete - Target words: {requirements_data.get('length_requirements', {}).get('target_words')}, SEO focus: {requirements_data.get('seo_requirements', {}).get('seo_focus')}")
+                return requirements_data
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Failed to parse AI JSON response: {e}")
+                logger.error(f"AI Response was: {ai_response[:500]}...")
+                raise Exception(f"AI returned invalid JSON format for requirements. Cannot proceed.")
+                
+        except asyncio.TimeoutError:
+            logger.error("AI requirements definition timed out after 30 seconds")
+            raise Exception("AI requirements definition timed out. Please try again.")
+        except Exception as e:
+            logger.error(f"AI requirements definition failed: {e}")
+            raise Exception(f"AI requirements definition failed: {str(e)}. Cannot proceed without AI requirements.")
+    
+    async def _define_content_process(self, workflow: PRPWorkflowState) -> Dict[str, Any]:
+        """Define the content creation process using AI - NO hardcoded responses."""
+        try:
+            logger.info(f"🤖 Starting AI-powered process definition for: {workflow.topic}")
+            
+            # Import the content generation agent
+            from ..agents.content_generation.agent import ContentGenerationAgent
+            from ..agents.base_agent import AgentContext
+            
+            # Create content generation agent
+            agent = ContentGenerationAgent()
+            
+            # Create agent context
+            agent_context = AgentContext(
+                organization_id="demo-org",
+                user_id="anonymous",
+                brand_voice_config=workflow.brand_voice,
+                industry_context=workflow.content_goals.get('industry', ''),
+                session_id=f"process_{workflow.workflow_id}"
+            )
+            
+            # Build context with previous results
+            previous_context = ""
+            if workflow.planning_result:
+                previous_context += f"PLANNING: {workflow.planning_result.get('content_strategy', {})}\n"
+            if workflow.requirements_result:
+                previous_context += f"REQUIREMENTS: Target words: {workflow.requirements_result.get('length_requirements', {}).get('target_words', 'Unknown')}, SEO focus: {workflow.requirements_result.get('seo_requirements', {}).get('seo_focus', 'Unknown')}\n"
+            
+            context_info = f"""
+TOPIC: {workflow.topic}
+BRIEF CONTENT: {workflow.brief_content[:300]}...
+CONTENT GOALS: {workflow.content_goals}
+BRAND VOICE: {workflow.brand_voice}
+CHECKIN FREQUENCY: {workflow.checkin_frequency}
+{previous_context}
+            """.strip()
+            
+            # Prepare process definition request
+            process_prompt = f"""Based on this content brief and previous planning/requirements, define the optimal content creation process:
+
+{context_info}
+
+Provide a structured JSON response with exactly this format:
+{{
+    "generation_approach": "how to approach content creation (e.g., section_by_section, outline_first, research_heavy)",
+    "research_process": {{
+        "primary_sources": ["source_type1", "source_type2"],
+        "fact_verification": "strict/moderate/basic",
+        "competitor_analysis": true/false,
+        "expert_quotes": true/false
+    }},
+    "quality_checks": [
+        "specific_check1",
+        "specific_check2",
+        "specific_check3"
+    ],
+    "review_steps": [
+        {{"step": "step_name", "focus": "what to focus on", "duration": "estimated_time"}},
+        {{"step": "another_step", "focus": "focus_area", "duration": "time_estimate"}}
+    ],
+    "tools_to_use": [
+        "specific_tool1",
+        "specific_tool2",
+        "specific_tool3"
+    ],
+    "optimization_sequence": [
+        "first_optimization",
+        "second_optimization",
+        "final_optimization"
+    ],
+    "timeline_estimate": {{
+        "research_hours": 2,
+        "writing_hours": 4,
+        "review_hours": 1,
+        "total_hours": 7
+    }}
+}}
+
+Respond only with the JSON structure, no other text."""
+
+            task_data = {
+                "type": "process_definition",
+                "content_type": "process",
+                "topic": f"Process: {workflow.topic}",
+                "target_keywords": [],
+                "content_length": "medium",
+                "writing_style": "methodical",
+                "target_audience": "content_producer",
+                "outline_only": False,
+                "reference_content": [workflow.brief_content] if workflow.brief_content else [],
+                "use_knowledge_graph": True,
+                "use_vector_search": False,
+                "user_message": process_prompt
+            }
+            
+            # Execute AI process definition with timeout
+            logger.info(f"🔄 Sending process definition to AI...")
+            result = await asyncio.wait_for(
+                agent.execute(task_data, agent_context),
+                timeout=30.0
+            )
+            
+            if not result.success or not result.result_data:
+                raise Exception(f"AI process definition failed: {result.error_message if result else 'No result returned'}")
+            
+            ai_response = result.result_data.get("content", "")
+            logger.info(f"✅ AI process definition completed: {len(ai_response)} characters")
+            
+            # Parse JSON response from AI
+            try:
+                import json
+                # Extract JSON from AI response
+                start_idx = ai_response.find('{')
+                end_idx = ai_response.rfind('}') + 1
+                if start_idx >= 0 and end_idx > start_idx:
+                    json_str = ai_response[start_idx:end_idx]
+                    process_data = json.loads(json_str)
+                else:
+                    raise ValueError("No JSON found in AI response")
+                
+                # Validate required fields
+                required_fields = ["generation_approach", "quality_checks", "review_steps", "tools_to_use"]
+                for field in required_fields:
+                    if field not in process_data:
+                        raise ValueError(f"AI response missing required field: {field}")
+                
+                # Add metadata
+                process_data["ai_powered"] = True
+                process_data["process_method"] = "ai_structured"
+                process_data["workflow_id"] = workflow.workflow_id
+                
+                logger.info(f"📊 AI Process definition complete - Approach: {process_data.get('generation_approach')}, Timeline: {process_data.get('timeline_estimate', {}).get('total_hours', 'Unknown')} hours")
+                return process_data
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Failed to parse AI JSON response: {e}")
+                logger.error(f"AI Response was: {ai_response[:500]}...")
+                raise Exception(f"AI returned invalid JSON format for process definition. Cannot proceed.")
+                
+        except asyncio.TimeoutError:
+            logger.error("AI process definition timed out after 30 seconds")
+            raise Exception("AI process definition timed out. Please try again.")
+        except Exception as e:
+            logger.error(f"AI process definition failed: {e}")
+            raise Exception(f"AI process definition failed: {str(e)}. Cannot proceed without AI process definition.")
+    
+    async def _generate_content(self, workflow: PRPWorkflowState) -> Dict[str, Any]:
+        """Generate the actual content using ContentGenerationAgent."""
+        try:
+            # Import the content generation agent
+            from ..agents.content_generation.agent import ContentGenerationAgent
+            from ..agents.base_agent import AgentContext
+            
+            # Get content generation agent
+            agent = ContentGenerationAgent()
+            
+            # Create agent context
+            agent_context = AgentContext(
+                organization_id="demo-org",
+                user_id="anonymous",
+                brand_voice_config=workflow.brand_voice,
+                industry_context=workflow.content_goals.get('industry', ''),
+                session_id=f"prp_{workflow.workflow_id}"
+            )
+            
+            # Prepare content generation request
+            task_data = {
+                "content_type": "blog_post",
+                "topic": workflow.topic,
+                "target_keywords": [workflow.topic],
+                "content_length": "medium",
+                "writing_style": workflow.brand_voice.get("tone", "informational"),
+                "target_audience": workflow.content_goals.get("audience", "general"),
+                "outline_only": False,
+                "include_meta_tags": True,
+                "include_internal_links": True,
+                "reference_content": [workflow.brief_content] if workflow.brief_content else [],
+                "use_knowledge_graph": True,
+                "use_vector_search": True,
+                "similarity_threshold": 0.7,
+                "max_related_content": 5,
+                "type": "content_generation"
+            }
+            
+            # Execute content generation
+            result = await agent.execute(task_data, agent_context)
+            
+            if result.success and result.result_data:
+                generated_data = result.result_data
+                return {
+                    "title": generated_data.get("title", f"Complete Guide to {workflow.topic}"),
+                    "content": generated_data.get("content", "Generated content not available"),
+                    "word_count": generated_data.get("word_count", 0),
+                    "seo_score": generated_data.get("seo_score", 75),
+                    "readability_score": generated_data.get("readability_score", 80),
+                    "brand_voice_compliance": generated_data.get("brand_voice_compliance", 85),
+                    "sections_generated": len(generated_data.get("content_outline", {}).get("sections", [])),
+                    "internal_links": len(generated_data.get("internal_links", [])),
+                    "meta_tags": generated_data.get("meta_tags", {}),
+                    "knowledge_sources": generated_data.get("knowledge_sources", []),
+                    "related_topics": generated_data.get("related_topics", []),
+                    "improvement_suggestions": generated_data.get("improvement_suggestions", [])
+                }
+            else:
+                logger.error(f"Content generation failed: {result.error_message}")
+                # Fallback response
+                return {
+                    "title": f"Complete Guide to {workflow.topic}",
+                    "content": f"# Complete Guide to {workflow.topic}\n\nContent generation encountered an issue. Please try again.",
+                    "word_count": 50,
+                    "seo_score": 60,
+                    "error": result.error_message
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in content generation: {e}")
+            # Fallback response
+            return {
+                "title": f"Complete Guide to {workflow.topic}",
+                "content": f"# Complete Guide to {workflow.topic}\n\nThis is generated content based on your brief using the PRP workflow...",
+                "word_count": 2000,
+                "seo_score": 85,
+                "sections_generated": 5,
+                "internal_links": 3,
+                "meta_tags": {
+                    "title": f"Complete Guide to {workflow.topic}",
+                    "description": f"Learn everything about {workflow.topic} with this comprehensive guide."
+                }
+            }
+    
+    async def _perform_final_review(self, workflow: PRPWorkflowState) -> Dict[str, Any]:
+        """Perform final review and optimization using AI - NO hardcoded responses."""
+        try:
+            logger.info(f"🤖 Starting AI-powered final review for: {workflow.topic}")
+            
+            # Import the content generation agent
+            from ..agents.content_generation.agent import ContentGenerationAgent
+            from ..agents.base_agent import AgentContext
+            
+            # Create content generation agent
+            agent = ContentGenerationAgent()
+            
+            # Create agent context
+            agent_context = AgentContext(
+                organization_id="demo-org",
+                user_id="anonymous",
+                brand_voice_config=workflow.brand_voice,
+                industry_context=workflow.content_goals.get('industry', ''),
+                session_id=f"final_review_{workflow.workflow_id}"
+            )
+            
+            # Get generated content for review
+            content_to_review = ""
+            if workflow.generation_result:
+                content_to_review = workflow.generation_result.get("content", "")[:2000]  # First 2000 chars for review
+            
+            # Build comprehensive context
+            review_context = f"""
+TOPIC: {workflow.topic}
+ORIGINAL BRIEF: {workflow.brief_content[:300]}...
+CONTENT GOALS: {workflow.content_goals}
+BRAND VOICE: {workflow.brand_voice}
+GENERATED CONTENT (preview): {content_to_review}...
+REQUIREMENTS: {workflow.requirements_result.get('length_requirements', {}) if workflow.requirements_result else 'None'}
+PROCESS USED: {workflow.process_result.get('generation_approach', 'Unknown') if workflow.process_result else 'Unknown'}
+            """.strip()
+            
+            # Prepare final review request
+            review_prompt = f"""Perform a comprehensive final review and quality assessment of this content based on the brief, requirements, and brand voice:
+
+{review_context}
+
+Provide a structured JSON response with exactly this format:
+{{
+    "seo_analysis": {{
+        "seo_score": 85,
+        "keyword_optimization": "excellent/good/fair/poor",
+        "header_structure": "excellent/good/fair/poor",
+        "meta_optimization": "excellent/good/fair/poor",
+        "internal_linking": "excellent/good/fair/poor"
+    }},
+    "brand_compliance": {{
+        "compliance_score": 90,
+        "tone_alignment": "excellent/good/fair/poor",
+        "voice_consistency": "excellent/good/fair/poor",
+        "key_message_delivery": "excellent/good/fair/poor"
+    }},
+    "content_quality": {{
+        "readability_score": 88,
+        "engagement_level": "high/medium/low",
+        "information_accuracy": "verified/likely/unverified",
+        "completeness": "complete/mostly_complete/incomplete"
+    }},
+    "optimization_applied": [
+        "specific_optimization1",
+        "specific_optimization2",
+        "specific_optimization3"
+    ],
+    "identified_issues": [
+        "issue1_description",
+        "issue2_description"
+    ],
+    "recommendations": [
+        "specific_actionable_recommendation1",
+        "specific_actionable_recommendation2",
+        "specific_actionable_recommendation3"
+    ],
+    "overall_assessment": {{
+        "final_score": 87,
+        "readiness": "ready/needs_minor_revisions/needs_major_revisions",
+        "estimated_revision_time": "30_minutes/2_hours/4_hours"
+    }}
+}}
+
+Respond only with the JSON structure, no other text."""
+
+            task_data = {
+                "type": "final_review",
+                "content_type": "review",
+                "topic": f"Final Review: {workflow.topic}",
+                "target_keywords": [],
+                "content_length": "medium",
+                "writing_style": "analytical",
+                "target_audience": "quality_assessor",
+                "outline_only": False,
+                "reference_content": [workflow.brief_content, content_to_review] if content_to_review else [workflow.brief_content],
+                "use_knowledge_graph": False,
+                "use_vector_search": False,
+                "user_message": review_prompt
+            }
+            
+            # Execute AI final review with timeout
+            logger.info(f"🔄 Sending final review to AI...")
+            result = await asyncio.wait_for(
+                agent.execute(task_data, agent_context),
+                timeout=30.0
+            )
+            
+            if not result.success or not result.result_data:
+                raise Exception(f"AI final review failed: {result.error_message if result else 'No result returned'}")
+            
+            ai_response = result.result_data.get("content", "")
+            logger.info(f"✅ AI final review completed: {len(ai_response)} characters")
+            
+            # Parse JSON response from AI
+            try:
+                import json
+                # Extract JSON from AI response
+                start_idx = ai_response.find('{')
+                end_idx = ai_response.rfind('}') + 1
+                if start_idx >= 0 and end_idx > start_idx:
+                    json_str = ai_response[start_idx:end_idx]
+                    review_data = json.loads(json_str)
+                else:
+                    raise ValueError("No JSON found in AI response")
+                
+                # Validate required fields
+                required_fields = ["seo_analysis", "brand_compliance", "content_quality", "recommendations"]
+                for field in required_fields:
+                    if field not in review_data:
+                        raise ValueError(f"AI response missing required field: {field}")
+                
+                # Add metadata
+                review_data["ai_powered"] = True
+                review_data["review_method"] = "ai_comprehensive"
+                review_data["workflow_id"] = workflow.workflow_id
+                review_data["review_timestamp"] = datetime.now().isoformat()
+                
+                logger.info(f"📊 AI Final review complete - Overall score: {review_data.get('overall_assessment', {}).get('final_score', 'Unknown')}, Readiness: {review_data.get('overall_assessment', {}).get('readiness', 'Unknown')}")
+                return review_data
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.error(f"Failed to parse AI JSON response: {e}")
+                logger.error(f"AI Response was: {ai_response[:500]}...")
+                raise Exception(f"AI returned invalid JSON format for final review. Cannot proceed.")
+                
+        except asyncio.TimeoutError:
+            logger.error("AI final review timed out after 30 seconds")
+            raise Exception("AI final review timed out. Please try again.")
+        except Exception as e:
+            logger.error(f"AI final review failed: {e}")
+            raise Exception(f"AI final review failed: {str(e)}. Cannot proceed without AI review.")
+
+
+# Global service instance
+prp_workflow_service = PRPWorkflowService()

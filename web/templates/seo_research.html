@@ -1,0 +1,949 @@
+{% extends "base.html" %}
+
+{% block page_title %}SEO Research{% endblock %}
+{% block page_description %}Keyword research, competitor analysis, and content gap identification{% endblock %}
+
+{% block content %}
+
+<!-- Temporary Authentication Setup for Testing -->
+<script>
+    // Real user authentication token for admin@twistworld.co.uk
+    const realToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJiOTQ1YmFlLWY2NGQtNDg1OS1iMGRkLTg2NDE1ZDM1M2EyZCIsImVtYWlsIjoiYWRtaW5AdHdpc3R3b3JsZC5jby51ayIsImRpc3BsYXlfbmFtZSI6IkFkbWluIFRlYW0iLCJvcmdhbml6YXRpb25faWQiOiJ0d2lzdHdvcmxkLW9yZyIsInJvbGUiOiJvd25lciIsImF2YXRhcl91cmwiOm51bGwsImV4cCI6MTc1NjU1NTI5M30.j0BZGMildyXHBbrdReh6qgLMWLokxCEmZZpCbGuhwmQ';
+    
+    // Set token in localStorage and cookie for workspace manager
+    localStorage.setItem('access_token', realToken);
+    document.cookie = `access_token=${realToken}; path=/; secure; samesite=strict`;
+    
+    console.log('🔑 Real user authentication token set for admin@twistworld.co.uk');
+</script>
+
+<div x-data="seoResearchData()" x-init="init()" class="space-y-6">
+    
+    <!-- Header Section -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-white">SEO Research</h1>
+            <p class="text-gray-400 mt-1">Discover keyword opportunities and analyze competitors</p>
+        </div>
+        <div class="flex space-x-3">
+            <button @click="refreshData()" class="btn-secondary">
+                <i class="fas fa-sync-alt mr-2"></i>
+                Refresh Data
+            </button>
+            <button @click="generateReport()" class="btn-primary">
+                <i class="fas fa-file-pdf mr-2"></i>
+                Generate Report
+            </button>
+        </div>
+    </div>
+
+    <!-- Research Tabs -->
+    <div class="tab-container rounded-lg">
+        <div class="flex tab-divider">
+            <button @click="activeTab = 'keywords'" 
+                    class="px-6 py-4 font-medium tab-button"
+                    :class="activeTab === 'keywords' ? 'active' : ''">
+                <i class="fas fa-key mr-2"></i>
+                Keyword Research
+            </button>
+            <button @click="activeTab = 'competitors'" 
+                    class="px-6 py-4 font-medium tab-button"
+                    :class="activeTab === 'competitors' ? 'active' : ''">
+                <i class="fas fa-users mr-2"></i>
+                Competitor Analysis
+            </button>
+            <button @click="activeTab = 'gaps'" 
+                    class="px-6 py-4 font-medium tab-button"
+                    :class="activeTab === 'gaps' ? 'active' : ''">
+                <i class="fas fa-search-plus mr-2"></i>
+                Content Gaps
+            </button>
+            <button @click="activeTab = 'trends'" 
+                    class="px-6 py-4 font-medium tab-button"
+                    :class="activeTab === 'trends' ? 'active' : ''"
+                <i class="fas fa-chart-line mr-2"></i>
+                Trends Analysis
+            </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="p-6">
+            
+            <!-- Keyword Research Tab -->
+            <div x-show="activeTab === 'keywords'" class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Keyword Input -->
+                    <div class="lg:col-span-1">
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold">Research Keywords</h3>
+                                <button @click="loadSuggestedKeywords()" class="text-blue-400 hover:text-blue-300 text-sm">
+                                    <i class="fas fa-magic mr-1"></i>
+                                    Get Suggestions
+                                </button>
+                            </div>
+                            <div class="space-y-4">
+                                <!-- Suggested Keywords Tags -->
+                                <div x-show="suggestedKeywords.length > 0">
+                                    <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary)">Suggested Keywords</label>
+                                    <div class="flex flex-wrap gap-2 mb-3 max-h-32 overflow-y-auto">
+                                        <template x-for="suggestion in suggestedKeywords" :key="suggestion.keyword">
+                                            <button @click="addSuggestedKeyword(suggestion.keyword)" 
+                                                    class="inline-flex items-center px-2 py-1 bg-blue-600 text-white text-xs rounded-full hover:bg-blue-700 transition-colors">
+                                                <span x-text="suggestion.keyword"></span>
+                                                <i class="fas fa-plus ml-1 text-xs"></i>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                                
+                                <!-- Active Keywords Tags -->
+                                <div x-show="activeKeywordTags.length > 0">
+                                    <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary)">Active Keywords</label>
+                                    <div class="flex flex-wrap gap-2 mb-3">
+                                        <template x-for="(tag, index) in activeKeywordTags" :key="index">
+                                            <span class="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded-full">
+                                                <span x-text="tag"></span>
+                                                <button @click="removeKeywordTag(index)" class="ml-1 text-xs hover:text-red-300">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary)">Add Keywords (comma-separated)</label>
+                                    <div class="flex space-x-2">
+                                        <input x-model="newKeywordInput" 
+                                               @keydown.enter="addKeywordsFromInput()"
+                                               placeholder="keyword1, keyword2, keyword3"
+                                               class="flex-1 px-3 py-2 input-field rounded-lg focus:ring-2 focus:ring-blue-500"/>
+                                        <button @click="addKeywordsFromInput()" class="btn-primary px-3 py-2">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary)">Country</label>
+                                        <select x-model="country" class="w-full px-3 py-2 input-field rounded-lg">
+                                            <option value="US">United States</option>
+                                            <option value="GB">United Kingdom</option>
+                                            <option value="CA">Canada</option>
+                                            <option value="AU">Australia</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary)">Language</label>
+                                        <select x-model="language" class="w-full px-3 py-2 input-field rounded-lg">
+                                            <option value="en">English</option>
+                                            <option value="es">Spanish</option>
+                                            <option value="fr">French</option>
+                                            <option value="de">German</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button @click="startKeywordResearch()" 
+                                        class="w-full btn-primary" 
+                                        :disabled="loading || (activeKeywordTags.length === 0 && !keywordInput.trim())"&gt;
+                                    <span x-show="!loading">
+                                        <i class="fas fa-search mr-2"></i>
+                                        Start Research
+                                    </span>
+                                    <span x-show="loading">
+                                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                                        Researching...
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results -->
+                    <div class="lg:col-span-2">
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold">Keyword Opportunities</h3>
+                                <div class="flex items-center space-x-4" x-show="keywordResults.length > 0">
+                                    <div class="text-sm text-gray-400">
+                                        <span x-text="keywordResults.length"></span> keywords found
+                                    </div>
+                                    <!-- Data Source Indicator -->
+                                    <div x-show="dataSourceInfo" class="flex items-center space-x-2">
+                                        <span class="text-xs px-2 py-1 rounded-full" 
+                                              :class="getDataSourceColor(dataSourceInfo?.api_status)"
+                                              x-text="dataSourceInfo?.data_source || 'Analysis'"></span>
+                                        <button x-show="dataSourceInfo?.note" 
+                                                :title="dataSourceInfo?.note"
+                                                class="text-gray-400 hover:text-gray-300">
+                                            <i class="fas fa-info-circle text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Keyword Results Table -->
+                            <div x-show="keywordResults.length > 0" class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead>
+                                        <tr class="table-header">
+                                            <th class="text-left py-3 px-4">Keyword</th>
+                                            <th class="text-left py-3 px-4">Volume</th>
+                                            <th class="text-left py-3 px-4">Difficulty</th>
+                                            <th class="text-left py-3 px-4">Opportunity</th>
+                                            <th class="text-left py-3 px-4">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="keyword in keywordResults" :key="keyword.term">
+                                            <tr class="table-row">
+                                                <td class="py-3 px-4 font-medium" x-text="keyword.term"></td>
+                                                <td class="py-3 px-4" style="color: var(--text-secondary)" x-text="formatNumber(keyword.volume)"></td>
+                                                <td class="py-3 px-4">
+                                                    <span class="px-2 py-1 rounded text-xs"
+                                                          :class="getDifficultyColor(keyword.difficulty)"
+                                                          x-text="keyword.difficulty + '/100'"></span>
+                                                </td>
+                                                <td class="py-3 px-4">
+                                                    <span class="px-2 py-1 rounded text-xs"
+                                                          :class="getOpportunityColor(keyword.opportunity)"
+                                                          x-text="keyword.opportunity"></span>
+                                                </td>
+                                                <td class="py-3 px-4">
+                                                    <button @click="createContent(keyword)" class="text-blue-400 hover:text-blue-300 mr-3">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                    <button @click="addToTracker(keyword)" class="text-green-400 hover:text-green-300">
+                                                        <i class="fas fa-bookmark"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- Empty State -->
+                            <div x-show="keywordResults.length === 0 && !loading" class="text-center py-12">
+                                <i class="fas fa-search text-4xl text-gray-600 mb-4"></i>
+                                <h4 class="text-xl font-medium text-gray-400 mb-2">Ready to Research</h4>
+                                <p class="text-gray-500">Enter your seed keywords to discover new opportunities</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Competitor Analysis Tab -->
+            <div x-show="activeTab === 'competitors'" class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Competitor Input -->
+                    <div class="lg:col-span-1">
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">Analyze Competitors</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary)">Competitor Domains</label>
+                                    <textarea x-model="competitorDomains" 
+                                              placeholder="competitor1.com&#10;competitor2.com..."
+                                              class="w-full h-24 px-3 py-2 input-field rounded-lg focus:ring-2 focus:ring-blue-500"
+                                              rows="3"></textarea>
+                                </div>
+                                <button @click="analyzeCompetitors()" 
+                                        class="w-full btn-primary" 
+                                        :disabled="loading || !competitorDomains.trim()">
+                                    <span x-show="!loading">
+                                        <i class="fas fa-search mr-2"></i>
+                                        Analyze Competitors
+                                    </span>
+                                    <span x-show="loading">
+                                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                                        Analyzing...
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Competitor Results -->
+                    <div class="lg:col-span-2">
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">Competitor Analysis Results</h3>
+                            <div x-show="competitorResults.length > 0" class="space-y-4">
+                                <template x-for="competitor in competitorResults" :key="competitor.domain">
+                                    <div class="content-card-secondary rounded-lg p-4">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <h4 class="font-semibold text-lg" x-text="competitor.domain"></h4>
+                                            <div class="flex items-center space-x-4 text-sm">
+                                                <span class="text-blue-400">Authority: <span x-text="competitor.authority"></span></span>
+                                                <span class="text-green-400">Traffic: <span x-text="formatNumber(competitor.organic_traffic)"></span></span>
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <h5 class="font-medium mb-2" style="color: var(--text-secondary)">Content Themes</h5>
+                                                <div class="flex flex-wrap gap-2">
+                                                    <template x-for="theme in competitor.content_themes" :key="theme">
+                                                        <span class="px-2 py-1 bg-blue-600 text-white text-xs rounded" x-text="theme"></span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h5 class="font-medium mb-2" style="color: var(--text-secondary)">Top Keywords</h5>
+                                                <div class="space-y-1">
+                                                    <template x-for="kw in competitor.top_keywords.slice(0, 3)" :key="kw.keyword">
+                                                        <div class="flex justify-between text-sm">
+                                                            <span x-text="kw.keyword"></span>
+                                                            <span class="text-gray-400">#<span x-text="kw.position"></span></span>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <div x-show="competitorResults.length === 0 && !loading" class="text-center py-12">
+                                <i class="fas fa-users text-4xl text-gray-600 mb-4"></i>
+                                <h4 class="text-xl font-medium text-gray-400 mb-2">Ready to Analyze</h4>
+                                <p class="text-gray-500">Enter competitor domains to get started</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Gaps Tab -->
+            <div x-show="activeTab === 'gaps'" class="space-y-6">
+                <div class="card p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold">Content Gap Opportunities</h3>
+                        <button @click="analyzeContentGaps()" class="btn-primary" :disabled="loading">
+                            <i class="fas fa-search-plus mr-2"></i>
+                            Find Gaps
+                        </button>
+                    </div>
+                    
+                    <div x-show="contentGaps.length > 0" class="space-y-4">
+                        <template x-for="gap in contentGaps" :key="gap.topic">
+                            <div class="content-card-secondary rounded-lg p-6">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <h4 class="text-xl font-semibold mb-2" x-text="gap.topic"></h4>
+                                        <p class="mb-4" style="color: var(--text-secondary)" x-text="gap.content_angle"></p>
+                                        
+                                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                                            <div class="text-center">
+                                                <div class="text-2xl font-bold text-green-400" x-text="gap.opportunity_score"></div>
+                                                <div class="text-xs text-gray-400">Opportunity</div>
+                                            </div>
+                                            <div class="text-center">
+                                                <div class="text-2xl font-bold text-blue-400" x-text="formatNumber(gap.search_volume)"></div>
+                                                <div class="text-xs text-gray-400">Search Volume</div>
+                                            </div>
+                                            <div class="text-center">
+                                                <div class="text-2xl font-bold text-yellow-400" x-text="gap.difficulty"></div>
+                                                <div class="text-xs text-gray-400">Difficulty</div>
+                                            </div>
+                                            <div class="text-center">
+                                                <div class="text-2xl font-bold text-red-400" x-text="gap.competitors_covering"></div>
+                                                <div class="text-xs text-gray-400">Competitors</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-4">
+                                            <h5 class="font-medium mb-2" style="color: var(--text-secondary)">Target Keywords</h5>
+                                            <div class="flex flex-wrap gap-2">
+                                                <template x-for="keyword in gap.keywords" :key="keyword">
+                                                    <span class="px-2 py-1 bg-green-600 text-white text-xs rounded" x-text="keyword"></span>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="ml-4">
+                                        <button @click="createContentFromGap(gap)" class="btn-primary">
+                                            <i class="fas fa-plus mr-2"></i>
+                                            Create Content
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div x-show="contentGaps.length === 0 && !loading" class="text-center py-12">
+                        <i class="fas fa-search-plus text-4xl text-gray-600 mb-4"></i>
+                        <h4 class="text-xl font-medium text-gray-400 mb-2">Content Gap Analysis</h4>
+                        <p class="text-gray-500">Discover content opportunities your competitors are missing</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trends Analysis Tab -->
+            <div x-show="activeTab === 'trends'" class="space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Trends Input -->
+                    <div class="lg:col-span-1">
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">Trend Analysis</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary)">Keywords to Track</label>
+                                    <textarea x-model="trendKeywords" 
+                                              placeholder="seo,content marketing,digital strategy"
+                                              class="w-full h-24 px-3 py-2 input-field rounded-lg focus:ring-2 focus:ring-blue-500"
+                                              rows="3"></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-2" style="color: var(--text-secondary)">Timeframe</label>
+                                    <select x-model="trendTimeframe" class="w-full px-3 py-2 input-field rounded-lg">
+                                        <option value="1m">Past Month</option>
+                                        <option value="3m">Past 3 Months</option>
+                                        <option value="12m">Past Year</option>
+                                        <option value="5y">Past 5 Years</option>
+                                    </select>
+                                </div>
+                                <button @click="analyzeTrends()" 
+                                        class="w-full btn-primary" 
+                                        :disabled="loading">
+                                    <span x-show="!loading">
+                                        <i class="fas fa-chart-line mr-2"></i>
+                                        Analyze Trends
+                                    </span>
+                                    <span x-show="loading">
+                                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                                        Analyzing...
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Trends Results -->
+                    <div class="lg:col-span-2">
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">Trend Analysis Results</h3>
+                            <div x-show="trendResults.length > 0" class="space-y-4">
+                                <template x-for="trend in trendResults" :key="trend.keyword">
+                                    <div class="content-card-secondary rounded-lg p-4">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <h4 class="font-semibold" x-text="trend.keyword"></h4>
+                                            <span class="text-blue-400" x-text="'Avg: ' + (trend.average_interest || 0).toFixed(1)"></span>
+                                        </div>
+                                        <div style="position: relative; height: 120px;">
+                                            <canvas :id="'trendChart-' + trend.keyword.replace(/\s+/g, '-')"></canvas>
+                                        </div>
+                                        <div class="mt-2 text-xs text-gray-500" x-text="'Data points: ' + (trend.data_points ? trend.data_points.length : 0)"></div>
+                                    </div>
+                                </template>
+                            </div>
+                            <div x-show="trendResults.length === 0 && !loading" class="text-center py-12">
+                                <i class="fas fa-chart-line text-4xl text-gray-600 mb-4"></i>
+                                <h4 class="text-xl font-medium text-gray-400 mb-2">Trend Analysis</h4>
+                                <p class="text-gray-500">Track keyword trends and seasonality with Google Trends</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function seoResearchData() {
+    return {
+        activeTab: 'keywords',
+        loading: false,
+        keywordInput: '',
+        newKeywordInput: '',
+        activeKeywordTags: [],
+        suggestedKeywords: [],
+        loadingSuggestions: false,
+        lastSuggestionsLoad: 0,
+        country: 'US',
+        language: 'en',
+        keywordResults: [],
+        dataSourceInfo: null,
+        competitorDomains: '',
+        competitorResults: [],
+        contentGaps: [],
+        trendKeywords: '',
+        trendTimeframe: '1m',
+        trendResults: [],
+        
+        init() {
+            console.log('SEO Research initialized');
+            // Auto-load suggested keywords on page load
+            this.loadSuggestedKeywords();
+        },
+
+        async loadSuggestedKeywords() {
+            // Prevent duplicate calls if already loading or loaded recently
+            if (this.loadingSuggestions || (this.suggestedKeywords.length > 0 && Date.now() - this.lastSuggestionsLoad < 30000)) {
+                console.log('Skipping duplicate suggested keywords request');
+                return;
+            }
+            
+            this.loadingSuggestions = true;
+            
+            try {
+                const response = await fetch('/api/seo-research/suggested-keywords', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.suggestedKeywords = data.suggested_keywords;
+                        this.lastSuggestionsLoad = Date.now();
+                        console.log('Loaded suggested keywords:', this.suggestedKeywords.length);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load suggested keywords:', error);
+            } finally {
+                this.loadingSuggestions = false;
+            }
+        },
+
+        addSuggestedKeyword(keyword) {
+            if (!this.activeKeywordTags.includes(keyword)) {
+                this.activeKeywordTags.push(keyword);
+                // Remove from suggestions to avoid duplicates
+                this.suggestedKeywords = this.suggestedKeywords.filter(s => s.keyword !== keyword);
+            }
+        },
+
+        addKeywordsFromInput() {
+            if (!this.newKeywordInput.trim()) return;
+            
+            const keywords = this.newKeywordInput.split(',')
+                .map(k => k.trim())
+                .filter(k => k && !this.activeKeywordTags.includes(k));
+            
+            this.activeKeywordTags.push(...keywords);
+            this.newKeywordInput = '';
+        },
+
+        removeKeywordTag(index) {
+            const removedKeyword = this.activeKeywordTags[index];
+            this.activeKeywordTags.splice(index, 1);
+            
+            // If it was a suggested keyword, add it back to suggestions
+            const wasSuggested = this.suggestedKeywords.some(s => s.keyword === removedKeyword);
+            if (!wasSuggested) {
+                // Add back to suggestions with a default category
+                this.suggestedKeywords.push({
+                    keyword: removedKeyword,
+                    category: "Custom",
+                    confidence: 0.8,
+                    estimated_volume: 5000,
+                    source: "user_input"
+                });
+            }
+        },
+        
+        async startKeywordResearch() {
+            // Combine keywords from tags and traditional input
+            let allKeywords = [...this.activeKeywordTags];
+            
+            if (this.keywordInput.trim()) {
+                const inputKeywords = this.keywordInput.split('\n').filter(k => k.trim());
+                allKeywords.push(...inputKeywords);
+            }
+            
+            if (allKeywords.length === 0) {
+                alert('Please add some keywords to research');
+                return;
+            }
+            
+            this.loading = true;
+            try {
+                const response = await fetch('/api/seo-research/keywords', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        keywords: allKeywords,
+                        country: this.country,
+                        language: this.language
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.keywordResults = data.keywords;
+                        this.dataSourceInfo = {
+                            data_source: data.data_source,
+                            api_status: data.api_status,
+                            note: data.note
+                        };
+                        console.log(`Researched ${data.keywords.length} keywords using ${data.data_source}`);
+                    } else {
+                        console.error('Keyword research failed:', data.error);
+                    }
+                } else {
+                    console.error('API request failed:', response.status);
+                }
+                
+            } catch (error) {
+                console.error('Keyword research failed:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        createContent(keyword) {
+            // Navigate to Content Studio with pre-filled keyword
+            window.location.href = `/content-studio?keyword=${encodeURIComponent(keyword.term)}`;
+        },
+        
+        async addToTracker(keyword) {
+            try {
+                const response = await fetch('/api/seo-monitor/add-keyword', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        keyword: keyword.term,
+                        domain: window.location.hostname,
+                        notes: `Added from SEO Research - Volume: ${keyword.volume}, Difficulty: ${keyword.difficulty}`
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        // Show success message
+                        const successMsg = document.createElement('div');
+                        successMsg.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+                        successMsg.innerHTML = `<i class="fas fa-check mr-2"></i>Added "${keyword.term}" to tracker`;
+                        document.body.appendChild(successMsg);
+                        setTimeout(() => successMsg.remove(), 3000);
+                        
+                        console.log('Keyword added to tracker:', data);
+                    } else {
+                        throw new Error(data.message || 'Failed to add keyword');
+                    }
+                } else {
+                    throw new Error('API request failed');
+                }
+                
+            } catch (error) {
+                console.error('Failed to add keyword to tracker:', error);
+                
+                // Show error message
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'fixed top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+                errorMsg.innerHTML = `<i class="fas fa-exclamation-triangle mr-2"></i>Failed to add keyword to tracker`;
+                document.body.appendChild(errorMsg);
+                setTimeout(() => errorMsg.remove(), 5000);
+            }
+        },
+        
+        async analyzeCompetitors() {
+            if (!this.competitorDomains.trim()) return;
+            
+            this.loading = true;
+            try {
+                const domains = this.competitorDomains.split('\n').filter(d => d.trim());
+                
+                const response = await fetch('/api/seo-research/competitors', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        domains: domains,
+                        keywords: this.keywordResults.map(k => k.term)
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.competitorResults = data.competitors;
+                    }
+                }
+            } catch (error) {
+                console.error('Competitor analysis failed:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async analyzeContentGaps() {
+            this.loading = true;
+            try {
+                const response = await fetch('/api/seo-research/content-gaps', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        competitors: this.competitorResults.map(c => c.domain),
+                        keywords: this.keywordResults.map(k => k.term)
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.contentGaps = data.content_gaps;
+                    }
+                }
+            } catch (error) {
+                console.error('Content gap analysis failed:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async analyzeTrends() {
+            if (!this.trendKeywords.trim()) return;
+            
+            this.loading = true;
+            try {
+                const response = await fetch(`/api/seo-research/trends?keywords=${encodeURIComponent(this.trendKeywords)}&timeframe=${this.trendTimeframe}&geo=${this.country}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.trendResults = data.trends;
+                        // Create charts after data loads
+                        setTimeout(() => {
+                            this.createTrendCharts();
+                        }, 100);
+                    }
+                }
+            } catch (error) {
+                console.error('Trends analysis failed:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        createTrendCharts() {
+            this.trendResults.forEach(trend => {
+                const canvasId = 'trendChart-' + trend.keyword.replace(/\s+/g, '-');
+                const canvas = document.getElementById(canvasId);
+                
+                if (canvas && trend.data_points) {
+                    const ctx = canvas.getContext('2d');
+                    
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: trend.data_points.map(point => 
+                                new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                            ),
+                            datasets: [{
+                                label: trend.keyword,
+                                data: trend.data_points.map(point => point.value),
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                tension: 0.4,
+                                fill: true,
+                                pointRadius: 3,
+                                pointHoverRadius: 5,
+                                pointBackgroundColor: '#3b82f6',
+                                pointBorderColor: '#ffffff',
+                                pointBorderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                },
+                                tooltip: {
+                                    backgroundColor: '#1f2937',
+                                    titleColor: '#ffffff',
+                                    bodyColor: '#ffffff',
+                                    borderColor: '#374151',
+                                    borderWidth: 1
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    grid: {
+                                        color: '#374151',
+                                        drawBorder: false
+                                    },
+                                    ticks: {
+                                        color: '#9ca3af',
+                                        font: {
+                                            size: 10
+                                        }
+                                    }
+                                },
+                                x: {
+                                    grid: {
+                                        color: '#374151',
+                                        drawBorder: false
+                                    },
+                                    ticks: {
+                                        color: '#9ca3af',
+                                        font: {
+                                            size: 10
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        },
+        
+        createContentFromGap(gap) {
+            // Navigate to Content Studio with gap data
+            const params = new URLSearchParams({
+                topic: gap.topic,
+                keywords: gap.keywords.join(','),
+                content_type: gap.suggested_content_type
+            });
+            window.location.href = `/content-studio?${params.toString()}`;
+        },
+        
+        refreshData() {
+            console.log('Refreshing SEO research data...');
+            this.keywordResults = [];
+            this.competitorResults = [];
+            this.contentGaps = [];
+            this.trendResults = [];
+        },
+        
+        async generateReport() {
+            console.log('Generating SEO research report...');
+            
+            // Show loading state
+            this.loading = true;
+            const generateBtn = document.querySelector('button[\\@click="generateReport()"]');
+            const originalText = generateBtn.innerHTML;
+            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generating Report...';
+            generateBtn.disabled = true;
+            
+            try {
+                // Collect all research data
+                const reportData = {
+                    keywords: this.keywordResults,
+                    competitors: this.competitorResults,
+                    content_gaps: this.contentGaps,
+                    trends: this.trendResults,
+                    filters: {
+                        country: this.country,
+                        language: this.language,
+                        timeframe: this.trendTimeframe
+                    },
+                    generated_at: new Date().toISOString()
+                };
+                
+                // Create API call to generate report
+                const response = await fetch('/api/seo-research/generate-report', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(reportData)
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    
+                    // Create download link for HTML report
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `ai-seo-research-report-${new Date().toISOString().split('T')[0]}.html`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(url);
+                    
+                    console.log('AI-powered report downloaded successfully');
+                    
+                    // Show success message
+                    const successMsg = document.createElement('div');
+                    successMsg.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+                    successMsg.innerHTML = '<i class="fas fa-check mr-2"></i>AI Report Generated Successfully!';
+                    document.body.appendChild(successMsg);
+                    setTimeout(() => successMsg.remove(), 3000);
+                    
+                } else {
+                    console.error('Failed to generate report:', response.status);
+                    throw new Error('Report generation failed');
+                }
+                
+            } catch (error) {
+                console.error('Report generation failed:', error);
+                
+                // Show error message
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'fixed top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+                errorMsg.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i>Report generation failed. Please try again.';
+                document.body.appendChild(errorMsg);
+                setTimeout(() => errorMsg.remove(), 5000);
+                
+            } finally {
+                // Reset loading state
+                this.loading = false;
+                generateBtn.innerHTML = originalText;
+                generateBtn.disabled = false;
+            }
+        },
+        
+        formatNumber(num) {
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toString();
+        },
+        
+        getDifficultyColor(difficulty) {
+            if (difficulty < 30) return 'bg-green-600 text-white';
+            if (difficulty < 70) return 'bg-yellow-600 text-white';
+            return 'bg-red-600 text-white';
+        },
+        
+        getOpportunityColor(opportunity) {
+            const colors = {
+                'High': 'bg-green-600 text-white',
+                'Medium': 'bg-yellow-600 text-white',
+                'Low': 'bg-red-600 text-white'
+            };
+            return colors[opportunity] || 'bg-gray-600 text-white';
+        },
+
+        getDataSourceColor(apiStatus) {
+            const colors = {
+                'google_ads_api': 'bg-green-600 text-white',
+                'enhanced_algorithmic': 'bg-blue-600 text-white',
+                'fallback_mode': 'bg-yellow-600 text-white',
+                'service_unavailable': 'bg-red-600 text-white'
+            };
+            return colors[apiStatus] || 'bg-gray-600 text-white';
+        }
+    }
+}
+</script>
+{% endblock %}

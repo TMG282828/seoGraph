@@ -1,0 +1,299 @@
+<!-- SEO AI Suggestions Component -->
+<div x-data="seoSuggestionsData()" class="bg-gray-800 rounded-lg p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold">
+            <i class="fas fa-magic mr-2 text-blue-400"></i>
+            AI SEO Suggestions
+        </h3>
+        <button @click="getSuggestions()" 
+                class="btn-primary text-sm"
+                :disabled="loading || !hasContent"
+                :class="{ 'opacity-50': loading || !hasContent }">
+            <span x-show="!loading">
+                <i class="fas fa-wand-magic-sparkles mr-2"></i>
+                Get AI Suggestions
+            </span>
+            <span x-show="loading">
+                <i class="fas fa-spinner fa-spin mr-2"></i>
+                Analyzing...
+            </span>
+        </button>
+    </div>
+
+    <!-- Content Analysis Score -->
+    <div x-show="suggestions && suggestions.analysis" class="mb-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="text-center">
+                <div class="text-2xl font-bold" 
+                     :class="getScoreColor(suggestions?.analysis?.content_score)"
+                     x-text="suggestions?.analysis?.content_score + '/100' || '0/100'"></div>
+                <div class="text-xs text-gray-400">Content Score</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-blue-400" 
+                     x-text="suggestions?.analysis?.readability_score + '/100' || '0/100'"></div>
+                <div class="text-xs text-gray-400">Readability</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-green-400" 
+                     x-text="suggestions?.analysis?.content_length || '0'"></div>
+                <div class="text-xs text-gray-400">Word Count</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold text-yellow-400" 
+                     x-text="suggestions?.analysis?.keyword_density?.primary_keyword + '%' || '0%'"></div>
+                <div class="text-xs text-gray-400">Keyword Density</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Suggestions -->
+    <div x-show="suggestions && suggestions.suggestions" class="space-y-4 mb-6">
+        <h4 class="font-semibold text-gray-300">Optimization Suggestions</h4>
+        <template x-for="suggestion in suggestions?.suggestions || []" :key="suggestion.type">
+            <div class="bg-gray-900 rounded-lg p-4 border-l-4" 
+                 :class="getPriorityColor(suggestion.priority)">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center mb-2">
+                            <span class="font-medium text-white capitalize" x-text="suggestion.type.replace('_', ' ')"></span>
+                            <span class="ml-2 px-2 py-1 text-xs rounded" 
+                                  :class="getPriorityBadge(suggestion.priority)"
+                                  x-text="suggestion.priority"></span>
+                        </div>
+                        <p class="text-gray-300 text-sm mb-2" x-text="suggestion.suggestion"></p>
+                        <div x-show="suggestion.impact" class="text-xs text-green-400">
+                            <i class="fas fa-chart-line mr-1"></i>
+                            <span x-text="suggestion.impact"></span>
+                        </div>
+                        <div x-show="suggestion.example" class="mt-2 p-2 bg-gray-800 rounded text-xs text-gray-400 italic">
+                            Example: <span x-text="suggestion.example"></span>
+                        </div>
+                    </div>
+                    <button @click="applySuggestion(suggestion)" 
+                            class="ml-4 text-blue-400 hover:text-blue-300">
+                        <i class="fas fa-check-circle"></i>
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Smart Tags -->
+    <div x-show="suggestions && suggestions.recommended_tags" class="mb-6">
+        <div class="flex items-center justify-between mb-3">
+            <h4 class="font-semibold text-gray-300">AI-Recommended Tags</h4>
+            <button @click="addAllTags()" class="text-sm text-blue-400 hover:text-blue-300">
+                <i class="fas fa-plus mr-1"></i>
+                Add All
+            </button>
+        </div>
+        
+        <div class="space-y-3">
+            <template x-for="categoryGroup in groupedTags" :key="categoryGroup.category">
+                <div>
+                    <div class="text-xs font-medium text-gray-400 mb-2 capitalize" 
+                         x-text="categoryGroup.category + ' Tags'"></div>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="tag in categoryGroup.tags" :key="tag.tag">
+                            <div class="flex items-center bg-gray-700 rounded-full px-3 py-1 text-sm">
+                                <span x-text="tag.tag"></span>
+                                <div class="ml-2 flex items-center">
+                                    <div class="w-2 h-2 rounded-full mr-1" 
+                                         :class="getConfidenceColor(tag.confidence)"></div>
+                                    <span class="text-xs text-gray-400" 
+                                          x-text="Math.round(tag.confidence * 100) + '%'"></span>
+                                </div>
+                                <button @click="addTag(tag)" 
+                                        class="ml-2 text-green-400 hover:text-green-300">
+                                    <i class="fas fa-plus text-xs"></i>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Applied Tags Display -->
+    <div x-show="appliedTags.length > 0" class="mb-4">
+        <h4 class="font-semibold text-gray-300 mb-2">Applied Tags</h4>
+        <div class="flex flex-wrap gap-2">
+            <template x-for="tag in appliedTags" :key="tag">
+                <span class="bg-blue-600 text-white px-3 py-1 rounded-full text-sm flex items-center">
+                    <span x-text="tag"></span>
+                    <button @click="removeTag(tag)" class="ml-2 text-blue-200 hover:text-white">
+                        <i class="fas fa-times text-xs"></i>
+                    </button>
+                </span>
+            </template>
+        </div>
+    </div>
+
+    <!-- Technical Recommendations -->
+    <div x-show="suggestions && suggestions.technical_recommendations" class="mt-6">
+        <h4 class="font-semibold text-gray-300 mb-3">Technical SEO</h4>
+        <div class="space-y-2">
+            <template x-for="rec in suggestions?.technical_recommendations || []" :key="rec">
+                <div class="flex items-center text-sm">
+                    <i class="fas fa-cog text-gray-400 mr-2"></i>
+                    <span class="text-gray-300" x-text="rec"></span>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- No Suggestions State -->
+    <div x-show="!suggestions && !loading" class="text-center py-8">
+        <i class="fas fa-magic text-4xl text-gray-600 mb-4"></i>
+        <h4 class="text-lg font-medium text-gray-400 mb-2">AI SEO Analysis</h4>
+        <p class="text-gray-500">Add content above, then click "Get AI Suggestions" for personalized SEO recommendations</p>
+    </div>
+</div>
+
+<script>
+function seoSuggestionsData() {
+    return {
+        suggestions: null,
+        loading: false,
+        appliedTags: [],
+        hasContent: false,
+        
+        get groupedTags() {
+            if (!this.suggestions?.recommended_tags) return [];
+            
+            const groups = {};
+            this.suggestions.recommended_tags.forEach(tag => {
+                if (!groups[tag.category]) {
+                    groups[tag.category] = [];
+                }
+                groups[tag.category].push(tag);
+            });
+            
+            return Object.entries(groups).map(([category, tags]) => ({
+                category,
+                tags: tags.sort((a, b) => b.confidence - a.confidence)
+            }));
+        },
+        
+        async getSuggestions() {
+            this.loading = true;
+            try {
+                // Get content from parent component
+                const content = this.getContentFromParent();
+                const keywords = this.getKeywordsFromParent();
+                
+                const response = await fetch('/api/seo/ai-suggestions', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        content: content,
+                        keywords: keywords,
+                        page_type: 'blog_post',
+                        current_tags: this.appliedTags
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        this.suggestions = data;
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to get AI suggestions:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        getContentFromParent() {
+            // Get content from the main content textarea/editor
+            const contentTextarea = document.querySelector('textarea[placeholder*="content"]');
+            return contentTextarea ? contentTextarea.value : '';
+        },
+        
+        getKeywordsFromParent() {
+            // Get keywords from URL params or form
+            const params = new URLSearchParams(window.location.search);
+            const keywords = params.get('keywords');
+            return keywords ? keywords.split(',') : [];
+        },
+        
+        applySuggestion(suggestion) {
+            console.log('Applying suggestion:', suggestion.type);
+            // Could integrate with content editor to apply suggestions
+            this.showNotification(`Applied ${suggestion.type} suggestion`, 'success');
+        },
+        
+        addTag(tag) {
+            if (!this.appliedTags.includes(tag.tag)) {
+                this.appliedTags.push(tag.tag);
+                this.showNotification(`Added tag: ${tag.tag}`, 'success');
+            }
+        },
+        
+        addAllTags() {
+            this.suggestions?.recommended_tags?.forEach(tag => {
+                if (!this.appliedTags.includes(tag.tag)) {
+                    this.appliedTags.push(tag.tag);
+                }
+            });
+            this.showNotification(`Added ${this.suggestions.recommended_tags.length} tags`, 'success');
+        },
+        
+        removeTag(tag) {
+            this.appliedTags = this.appliedTags.filter(t => t !== tag);
+        },
+        
+        getScoreColor(score) {
+            if (score >= 80) return 'text-green-400';
+            if (score >= 60) return 'text-yellow-400';
+            return 'text-red-400';
+        },
+        
+        getPriorityColor(priority) {
+            const colors = {
+                'high': 'border-red-400',
+                'medium': 'border-yellow-400',
+                'low': 'border-green-400'
+            };
+            return colors[priority] || 'border-gray-400';
+        },
+        
+        getPriorityBadge(priority) {
+            const badges = {
+                'high': 'bg-red-600 text-white',
+                'medium': 'bg-yellow-600 text-white',
+                'low': 'bg-green-600 text-white'
+            };
+            return badges[priority] || 'bg-gray-600 text-white';
+        },
+        
+        getConfidenceColor(confidence) {
+            if (confidence >= 0.8) return 'bg-green-400';
+            if (confidence >= 0.6) return 'bg-yellow-400';
+            return 'bg-red-400';
+        },
+        
+        showNotification(message, type) {
+            // Simple notification - could be enhanced
+            console.log(`${type.toUpperCase()}: ${message}`);
+        },
+        
+        init() {
+            // Check if content exists on load
+            this.hasContent = this.getContentFromParent().length > 100;
+            
+            // Auto-get suggestions if content exists and keywords are provided
+            if (this.hasContent && this.getKeywordsFromParent().length > 0) {
+                setTimeout(() => this.getSuggestions(), 1000);
+            }
+        }
+    }
+}
+</script>

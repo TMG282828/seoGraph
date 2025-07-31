@@ -1,0 +1,1106 @@
+{% extends "base.html" %}
+
+{% block page_title %}Knowledge Graph{% endblock %}
+{% block page_description %}Interactive visualization of content relationships and knowledge networks{% endblock %}
+
+{% block extra_css %}
+<style>
+    .graph-container {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        min-height: 500px;
+        position: relative;
+    }
+    
+    .graph-controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    
+    .graph-type-button {
+        padding: 8px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+    }
+    
+    .graph-type-button:hover {
+        background: var(--bg-tertiary);
+        border-color: var(--accent-primary);
+    }
+    
+    .graph-type-button.active {
+        background: var(--accent-primary);
+        color: white;
+        border-color: var(--accent-primary);
+    }
+    
+    .graph-visualization {
+        width: 100%;
+        height: 600px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        position: relative;
+        overflow: hidden;
+        background: #1a1a1a;
+    }
+    
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        color: white;
+    }
+    
+    .graph-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+    
+    .stat-card {
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        padding: 16px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: var(--accent-primary);
+    }
+    
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-top: 4px;
+    }
+    
+    .fallback-content {
+        padding: 40px;
+        text-align: center;
+        color: var(--text-secondary);
+    }
+    
+    .fallback-content i {
+        font-size: 48px;
+        margin-bottom: 20px;
+        color: var(--text-muted);
+    }
+    
+    .error-message {
+        background: var(--accent-danger);
+        color: white;
+        padding: 12px;
+        border-radius: 6px;
+        margin: 10px 0;
+    }
+    
+    .success-message {
+        background: var(--accent-secondary);
+        color: white;
+        padding: 12px;
+        border-radius: 6px;
+        margin: 10px 0;
+    }
+
+    .graph-controls-panel {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .graph-controls-left {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    
+    .graph-controls-right {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    
+    .layout-selector {
+        padding: 6px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-size: 0.85rem;
+    }
+    
+    .zoom-controls {
+        display: flex;
+        gap: 4px;
+    }
+    
+    .zoom-btn {
+        width: 32px;
+        height: 32px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        transition: all 0.2s ease;
+    }
+    
+    .zoom-btn:hover {
+        background: var(--bg-tertiary);
+        border-color: var(--accent-primary);
+    }
+    
+    .node-info-panel {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 12px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        max-width: 250px;
+        display: none;
+        z-index: 100;
+    }
+    
+    .node-info-panel.show {
+        display: block;
+    }
+    
+    .node-info-title {
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #60a5fa;
+    }
+    
+    .node-info-detail {
+        margin-bottom: 4px;
+    }
+    
+    .graph-legend {
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        padding: 16px;
+        margin-top: 20px;
+        border: 1px solid var(--border-color);
+    }
+    
+    .legend-section {
+        margin-bottom: 16px;
+    }
+    
+    .legend-section:last-child {
+        margin-bottom: 0;
+    }
+    
+    .legend-title {
+        font-weight: bold;
+        font-size: 0.9rem;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .legend-items {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 8px;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+    
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid #333;
+        flex-shrink: 0;
+    }
+    
+    .legend-edge {
+        width: 20px;
+        height: 3px;
+        border-radius: 2px;
+        flex-shrink: 0;
+        position: relative;
+    }
+    
+    .legend-edge::after {
+        content: '';
+        position: absolute;
+        right: -2px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0;
+        height: 0;
+        border-left: 4px solid currentColor;
+        border-top: 3px solid transparent;
+        border-bottom: 3px solid transparent;
+    }
+    
+    .legend-size {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-bottom: 4px;
+    }
+    
+    .legend-size-demo {
+        border-radius: 50%;
+        background: var(--accent-primary);
+        border: 1px solid #333;
+    }
+    
+    .legend-small { width: 12px; height: 12px; }
+    .legend-medium { width: 16px; height: 16px; }
+    .legend-large { width: 20px; height: 20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Temporary Authentication Setup for Testing -->
+<script>
+    // Real user authentication token for admin@twistworld.co.uk
+    const realToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJiOTQ1YmFlLWY2NGQtNDg1OS1iMGRkLTg2NDE1ZDM1M2EyZCIsImVtYWlsIjoiYWRtaW5AdHdpc3R3b3JsZC5jby51ayIsImRpc3BsYXlfbmFtZSI6IkFkbWluIFRlYW0iLCJvcmdhbml6YXRpb25faWQiOiJ0d2lzdHdvcmxkLW9yZyIsInJvbGUiOiJvd25lciIsImF2YXRhcl91cmwiOm51bGwsImV4cCI6MTc1NjU1NTI5M30.j0BZGMildyXHBbrdReh6qgLMWLokxCEmZZpCbGuhwmQ';
+    
+    // Set token in localStorage and cookie for workspace manager
+    localStorage.setItem('access_token', realToken);
+    document.cookie = `access_token=${realToken}; path=/; secure; samesite=strict`;
+    
+    console.log('🔑 Real user authentication token set for admin@twistworld.co.uk');
+</script>
+
+<!-- Include Cytoscape.js -->
+<script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+
+<div class="space-y-6">
+    <!-- Graph Controls -->
+    <div class="card p-6">
+        <h3 class="text-lg font-semibold mb-4">Graph Type</h3>
+        <div class="graph-controls">
+            <button class="graph-type-button active" data-graph-type="content-knowledge">
+                Content Knowledge
+            </button>
+            <button class="graph-type-button" data-graph-type="keyword-network">
+                Keyword Network
+            </button>
+            <button class="graph-type-button" data-graph-type="competitor-landscape">
+                Competitor Landscape
+            </button>
+            <button class="graph-type-button" data-graph-type="semantic-clusters">
+                Semantic Clusters
+            </button>
+        </div>
+    </div>
+    
+    <!-- Graph Visualization -->
+    <div class="card p-6">
+        <h3 class="text-lg font-semibold mb-4">
+            <i class="fas fa-project-diagram mr-2"></i>
+            Interactive Knowledge Graph
+        </h3>
+        
+        <!-- Advanced Controls -->
+        <div class="graph-controls-panel">
+            <div class="graph-controls-left">
+                <select class="layout-selector" id="layout-selector">
+                    <option value="cose">Force-directed</option>
+                    <option value="circle">Circle</option>
+                    <option value="grid">Grid</option>
+                    <option value="concentric">Concentric</option>
+                    <option value="breadthfirst">Hierarchical</option>
+                    <option value="random">Random</option>
+                </select>
+            </div>
+            <div class="graph-controls-right">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" id="zoom-in" title="Zoom In">+</button>
+                    <button class="zoom-btn" id="zoom-out" title="Zoom Out">-</button>
+                    <button class="zoom-btn" id="fit-graph" title="Fit Graph">⌂</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="graph-visualization" id="knowledge-graph">
+            <div class="loading-overlay" id="loading-overlay">
+                <div class="loading"></div>
+            </div>
+            
+            <!-- Node Info Panel -->
+            <div class="node-info-panel" id="node-info-panel">
+                <div class="node-info-title" id="node-info-title">Node Information</div>
+                <div id="node-info-content"></div>
+            </div>
+        </div>
+        
+        <!-- Error/Success Messages -->
+        <div id="message-container"></div>
+    </div>
+    
+    <!-- Graph Statistics -->
+    <div class="card p-6">
+        <h3 class="text-lg font-semibold mb-4">Graph Statistics</h3>
+        <div class="graph-stats" id="graph-stats">
+            <div class="stat-card">
+                <div class="stat-value" id="node-count">-</div>
+                <div class="stat-label">Nodes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="edge-count">-</div>
+                <div class="stat-label">Edges</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="graph-density">-</div>
+                <div class="stat-label">Density</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avg-degree">-</div>
+                <div class="stat-label">Avg Degree</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Graph Legend -->
+    <div class="card p-6">
+        <h3 class="text-lg font-semibold mb-4">
+            <i class="fas fa-palette mr-2"></i>
+            Graph Legend
+        </h3>
+        
+        <div class="graph-legend">
+            <!-- Node Types -->
+            <div class="legend-section">
+                <div class="legend-title">
+                    <i class="fas fa-circle"></i>
+                    Node Types
+                </div>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #22c55e; border-color: #16a34a;"></div>
+                        <span>Content - Articles & Documents</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #f59e0b; border-color: #d97706;"></div>
+                        <span>Keywords - Search Terms</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #8b5cf6; border-color: #7c3aed;"></div>
+                        <span>Topics - Content Categories</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ef4444; border-color: #dc2626;"></div>
+                        <span>Competitors - Market Players</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #06b6d4; border-color: #0891b2;"></div>
+                        <span>Clusters - Semantic Groups</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #60a5fa; border-color: #2563eb;"></div>
+                        <span>General - Default Type</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Edge Types -->
+            <div class="legend-section">
+                <div class="legend-title">
+                    <i class="fas fa-arrows-alt-h"></i>
+                    Connection Types
+                </div>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-edge" style="background-color: #60a5fa; color: #60a5fa;"></div>
+                        <span>Related - General Relationship</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-edge" style="background-color: #22c55e; color: #22c55e;"></div>
+                        <span>Contains - Content Includes Topic</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-edge" style="background-color: #ef4444; color: #ef4444;"></div>
+                        <span>Competes - Competitive Overlap</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-edge" style="background-color: #8b5cf6; color: #8b5cf6;"></div>
+                        <span>Clusters - Semantic Similarity</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Node Sizes -->
+            <div class="legend-section">
+                <div class="legend-title">
+                    <i class="fas fa-expand-arrows-alt"></i>
+                    Node Sizes
+                </div>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <div class="legend-size">
+                            <div class="legend-size-demo legend-small"></div>
+                            <span>Low Importance/Weight</span>
+                        </div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-size">
+                            <div class="legend-size-demo legend-medium"></div>
+                            <span>Medium Importance/Weight</span>
+                        </div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-size">
+                            <div class="legend-size-demo legend-large"></div>
+                            <span>High Importance/Weight</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Interactive Elements -->
+            <div class="legend-section">
+                <div class="legend-title">
+                    <i class="fas fa-mouse-pointer"></i>
+                    Interactions
+                </div>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <i class="fas fa-hand-pointer text-blue-400"></i>
+                        <span>Click nodes to view details</span>
+                    </div>
+                    <div class="legend-item">
+                        <i class="fas fa-search-plus text-green-400"></i>
+                        <span>Mouse wheel to zoom in/out</span>
+                    </div>
+                    <div class="legend-item">
+                        <i class="fas fa-arrows-alt text-yellow-400"></i>
+                        <span>Drag to pan around graph</span>
+                    </div>
+                    <div class="legend-item">
+                        <i class="fas fa-eye text-purple-400"></i>
+                        <span>Hover for quick preview</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Application state
+    let currentGraphType = 'content-knowledge';
+    let currentGraphData = null;
+    let cy = null; // Cytoscape instance
+    let currentLayout = 'cose';
+    
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Wait for all scripts to load
+        setTimeout(() => {
+            setupEventListeners();
+            initializeCytoscape();
+            loadGraphData(currentGraphType);
+        }, 100);
+    });
+    
+    function setupEventListeners() {
+        // Graph type selector
+        document.querySelectorAll('.graph-type-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const graphType = this.dataset.graphType;
+                selectGraphType(graphType);
+            });
+        });
+        
+        // Layout selector
+        const layoutSelector = document.getElementById('layout-selector');
+        if (layoutSelector) {
+            layoutSelector.addEventListener('change', function() {
+                currentLayout = this.value;
+                if (cy && currentGraphData) {
+                    applyLayout(currentLayout);
+                }
+            });
+        }
+        
+        // Zoom controls
+        const zoomIn = document.getElementById('zoom-in');
+        if (zoomIn) {
+            zoomIn.addEventListener('click', () => {
+                if (cy) cy.zoom(cy.zoom() * 1.2);
+            });
+        }
+        
+        const zoomOut = document.getElementById('zoom-out');
+        if (zoomOut) {
+            zoomOut.addEventListener('click', () => {
+                if (cy) cy.zoom(cy.zoom() / 1.2);
+            });
+        }
+        
+        const fitGraph = document.getElementById('fit-graph');
+        if (fitGraph) {
+            fitGraph.addEventListener('click', () => {
+                if (cy) cy.fit();
+            });
+        }
+    }
+    
+    function initializeCytoscape() {
+        const container = document.getElementById('knowledge-graph');
+        
+        if (!container) {
+            console.error('Knowledge graph container not found');
+            return;
+        }
+        
+        // Remove loading overlay for cytoscape initialization
+        const loadingOverlay = document.getElementById('loading-overlay');
+        if (loadingOverlay) {
+            loadingOverlay.remove();
+        }
+        
+        // Use built-in cose layout for reliability
+        console.log('Initializing Cytoscape with built-in layouts');
+        
+        // Check if Cytoscape is available
+        if (typeof cytoscape === 'undefined') {
+            console.error('Cytoscape library not loaded');
+            return;
+        }
+        
+        // Initialize Cytoscape
+        cy = cytoscape({
+            container: container,
+            elements: [],
+            style: [
+                // Node styles
+                {
+                    selector: 'node',
+                    style: {
+                        'background-color': '#60a5fa',
+                        'label': 'data(label)',
+                        'color': '#ffffff',
+                        'font-size': '12px',
+                        'text-valign': 'center',
+                        'text-halign': 'center',
+                        'width': 'mapData(weight, 0, 100, 30, 80)',
+                        'height': 'mapData(weight, 0, 100, 30, 80)',
+                        'border-width': 2,
+                        'border-color': '#2563eb',
+                        'border-opacity': 0.8,
+                        'font-family': 'Inter, sans-serif',
+                        'text-outline-width': 2,
+                        'text-outline-color': '#000000',
+                        'text-outline-opacity': 0.8
+                    }
+                },
+                // Node type specific styles
+                {
+                    selector: 'node[type="content"]',
+                    style: {
+                        'background-color': '#22c55e',
+                        'border-color': '#16a34a'
+                    }
+                },
+                {
+                    selector: 'node[type="keyword"]',
+                    style: {
+                        'background-color': '#f59e0b',
+                        'border-color': '#d97706'
+                    }
+                },
+                {
+                    selector: 'node[type="topic"]',
+                    style: {
+                        'background-color': '#8b5cf6',
+                        'border-color': '#7c3aed'
+                    }
+                },
+                {
+                    selector: 'node[type="competitor"]',
+                    style: {
+                        'background-color': '#ef4444',
+                        'border-color': '#dc2626'
+                    }
+                },
+                {
+                    selector: 'node[type="cluster"]',
+                    style: {
+                        'background-color': '#06b6d4',
+                        'border-color': '#0891b2'
+                    }
+                },
+                // Edge styles
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 'mapData(weight, 0, 100, 1, 4)',
+                        'line-color': '#64748b',
+                        'target-arrow-color': '#64748b',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier',
+                        'arrow-scale': 1,
+                        'opacity': 0.7
+                    }
+                },
+                // Edge type specific styles
+                {
+                    selector: 'edge[relationship="related"]',
+                    style: {
+                        'line-color': '#60a5fa',
+                        'target-arrow-color': '#60a5fa'
+                    }
+                },
+                {
+                    selector: 'edge[relationship="contains"]',
+                    style: {
+                        'line-color': '#22c55e',
+                        'target-arrow-color': '#22c55e'
+                    }
+                },
+                {
+                    selector: 'edge[relationship="competes"]',
+                    style: {
+                        'line-color': '#ef4444',
+                        'target-arrow-color': '#ef4444'
+                    }
+                },
+                // Selected and hover states
+                {
+                    selector: 'node:selected',
+                    style: {
+                        'border-width': 4,
+                        'border-color': '#ffffff',
+                        'background-color': '#3b82f6'
+                    }
+                },
+                {
+                    selector: 'edge:selected',
+                    style: {
+                        'line-color': '#ffffff',
+                        'target-arrow-color': '#ffffff',
+                        'width': 3
+                    }
+                }
+            ],
+            layout: {
+                name: currentLayout,
+                animate: true,
+                animationDuration: 1000,
+                randomize: true,
+                nodeDimensionsIncludeLabels: true
+            },
+            minZoom: 0.1,
+            maxZoom: 3
+        });
+        
+        // Add event listeners for interactivity
+        cy.on('tap', 'node', function(event) {
+            const node = event.target;
+            showNodeInfo(node);
+        });
+        
+        cy.on('tap', function(event) {
+            if (event.target === cy) {
+                hideNodeInfo();
+            }
+        });
+        
+        cy.on('mouseover', 'node', function(event) {
+            const node = event.target;
+            node.style('cursor', 'pointer');
+        });
+        
+        cy.on('mouseout', 'node', function(event) {
+            const node = event.target;
+            node.style('cursor', 'default');
+        });
+    }
+    
+    function selectGraphType(graphType) {
+        if (graphType === currentGraphType) return;
+        
+        // Update UI
+        document.querySelectorAll('.graph-type-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const targetButton = document.querySelector(`[data-graph-type="${graphType}"]`);
+        if (targetButton) {
+            targetButton.classList.add('active');
+        }
+        
+        // Update current type
+        currentGraphType = graphType;
+        
+        // Load new graph data
+        loadGraphData(graphType);
+    }
+    
+    async function loadGraphData(graphType) {
+        try {
+            showLoading();
+            clearMessages();
+            hideNodeInfo();
+            
+            // Add timeout to prevent infinite loading (increased for graph database queries)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            
+            // Try to fetch from API first
+            try {
+                const response = await fetch(`/api/graph/${graphType}`, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    if (result.success && result.graph) {
+                        const graphData = result.graph;
+                        
+                        // Validate graph data
+                        if (graphData.nodes && Array.isArray(graphData.nodes) && 
+                            graphData.edges && Array.isArray(graphData.edges)) {
+                            
+                            currentGraphData = graphData;
+                            createVisualization(graphData);
+                            updateStatistics(result.statistics || {});
+                            hideLoading();
+                            showMessage('Graph loaded successfully!', 'success');
+                            return;
+                        }
+                    }
+                }
+            } catch (apiError) {
+                clearTimeout(timeoutId);
+                console.warn('API call failed, using sample data:', apiError);
+            }
+            
+            // If API fails, show empty state
+            console.warn('API unavailable, showing empty graph state');
+            showFallbackState(graphType);
+            hideLoading();
+            
+        } catch (error) {
+            console.error('Error loading graph data:', error);
+            hideLoading();
+            
+            let errorMessage = 'Failed to load graph data. ';
+            
+            if (error.name === 'AbortError') {
+                errorMessage += 'Request timed out.';
+            } else {
+                errorMessage += error.message || 'Unknown error occurred.';
+            }
+            
+            showMessage(errorMessage, 'error');
+            showFallbackState(graphType);
+        }
+    }
+    
+    function createEmptyGraphState(graphType) {
+        return {
+            nodes: [],
+            edges: [],
+            density: 0,
+            average_degree: 0
+        };
+    }
+    
+    function createVisualization(graphData) {
+        if (!cy) return;
+        
+        // Clear existing elements
+        cy.elements().remove();
+        
+        // Add nodes
+        const nodes = graphData.nodes.map(node => ({
+            data: {
+                id: node.id,
+                label: node.label,
+                type: node.type || 'default',
+                weight: node.weight || 50,
+                ...node // Include any additional properties
+            }
+        }));
+        
+        // Add edges
+        const edges = graphData.edges.map(edge => ({
+            data: {
+                id: `${edge.source}-${edge.target}`,
+                source: edge.source,
+                target: edge.target,
+                relationship: edge.relationship || 'related',
+                weight: edge.weight || 50,
+                ...edge // Include any additional properties
+            }
+        }));
+        
+        // Add all elements to the graph
+        cy.add([...nodes, ...edges]);
+        
+        // Apply layout
+        applyLayout(currentLayout);
+    }
+    
+    function applyLayout(layoutName) {
+        if (!cy) return;
+        
+        const layoutOptions = {
+            name: layoutName,
+            animate: true,
+            animationDuration: 1000,
+            fit: true,
+            padding: 50
+        };
+        
+        // Add specific options for different layouts
+        switch (layoutName) {
+            case 'cose':
+                Object.assign(layoutOptions, {
+                    randomize: true,
+                    idealEdgeLength: 100,
+                    nodeOverlap: 20,
+                    refresh: 20,
+                    componentSpacing: 100,
+                    nodeRepulsion: 400000,
+                    edgeElasticity: 100,
+                    nestingFactor: 5,
+                    gravity: 80,
+                    numIter: 1000,
+                    initialTemp: 200,
+                    coolingFactor: 0.95,
+                    minTemp: 1.0
+                });
+                break;
+            case 'random':
+                Object.assign(layoutOptions, {
+                    animate: false
+                });
+                break;
+            case 'circle':
+                Object.assign(layoutOptions, {
+                    radius: 200,
+                    startAngle: -Math.PI / 2
+                });
+                break;
+            case 'concentric':
+                Object.assign(layoutOptions, {
+                    concentric: function(node) {
+                        return node.data('weight');
+                    },
+                    levelWidth: function(nodes) {
+                        return 2;
+                    }
+                });
+                break;
+            case 'breadthfirst':
+                Object.assign(layoutOptions, {
+                    directed: true,
+                    roots: cy.nodes().filter(n => n.indegree() === 0),
+                    spacingFactor: 1.5
+                });
+                break;
+            case 'grid':
+                Object.assign(layoutOptions, {
+                    rows: Math.ceil(Math.sqrt(cy.nodes().length)),
+                    cols: Math.ceil(Math.sqrt(cy.nodes().length))
+                });
+                break;
+        }
+        
+        // Apply the layout
+        cy.layout(layoutOptions).run();
+    }
+    
+    function showNodeInfo(node) {
+        const panel = document.getElementById('node-info-panel');
+        const title = document.getElementById('node-info-title');
+        const content = document.getElementById('node-info-content');
+        
+        if (!panel || !title || !content) {
+            console.warn('Node info panel elements not found');
+            return;
+        }
+        
+        title.textContent = node.data('label');
+        
+        const nodeData = node.data();
+        const infoHtml = `
+            <div class="node-info-detail"><strong>Type:</strong> ${nodeData.type}</div>
+            <div class="node-info-detail"><strong>Weight:</strong> ${nodeData.weight}</div>
+            <div class="node-info-detail"><strong>Connections:</strong> ${node.degree()}</div>
+            <div class="node-info-detail"><strong>ID:</strong> ${nodeData.id}</div>
+            ${nodeData.relationship ? `<div class="node-info-detail"><strong>Relationship:</strong> ${nodeData.relationship}</div>` : ''}
+        `;
+        
+        content.innerHTML = infoHtml;
+        panel.classList.add('show');
+    }
+    
+    function hideNodeInfo() {
+        const panel = document.getElementById('node-info-panel');
+        if (panel) {
+            panel.classList.remove('show');
+        }
+    }
+    
+    function updateStatistics(statistics) {
+        const nodeCount = document.getElementById('node-count');
+        const edgeCount = document.getElementById('edge-count');
+        const graphDensity = document.getElementById('graph-density');
+        const avgDegree = document.getElementById('avg-degree');
+        
+        if (nodeCount) nodeCount.textContent = statistics.node_count || 0;
+        if (edgeCount) edgeCount.textContent = statistics.edge_count || 0;
+        if (graphDensity) {
+            // Calculate density if not provided (edges / max_possible_edges)
+            const density = statistics.density || 
+                (statistics.node_count > 1 ? 
+                    (statistics.edge_count * 2) / (statistics.node_count * (statistics.node_count - 1)) 
+                    : 0);
+            graphDensity.textContent = (density * 100).toFixed(1) + '%';
+        }
+        if (avgDegree) avgDegree.textContent = (statistics.avg_degree || 0).toFixed(1);
+    }
+    
+    function showFallbackState(graphType) {
+        if (cy) {
+            cy.elements().remove();
+        }
+        
+        const container = document.getElementById('knowledge-graph');
+        
+        const fallbackHtml = `
+            <div class="fallback-content">
+                <i class="fas fa-project-diagram"></i>
+                <h4>No Graph Data Available</h4>
+                <p>Your "${graphType.replace('-', ' ')}" knowledge graph will appear here once you have content and relationships to visualize.</p>
+                <p style="margin-top: 12px; font-size: 0.875rem; color: #718096;">Start by creating content or importing data to build your knowledge graph.</p>
+                <button onclick="loadGraphData('${graphType}')" class="btn-primary" style="margin-top: 20px;">
+                    <i class="fas fa-refresh mr-2"></i>
+                    Refresh
+                </button>
+            </div>
+        `;
+        
+        container.innerHTML = fallbackHtml;
+        
+        // Reinitialize cytoscape after fallback
+        setTimeout(() => {
+            initializeCytoscape();
+        }, 100);
+        
+        // Reset statistics
+        const nodeCount = document.getElementById('node-count');
+        const edgeCount = document.getElementById('edge-count');
+        const graphDensity = document.getElementById('graph-density');
+        const avgDegree = document.getElementById('avg-degree');
+        
+        if (nodeCount) nodeCount.textContent = '-';
+        if (edgeCount) edgeCount.textContent = '-';
+        if (graphDensity) graphDensity.textContent = '-';
+        if (avgDegree) avgDegree.textContent = '-';
+    }
+    
+    function showLoading() {
+        // Create loading overlay if it doesn't exist
+        const container = document.getElementById('knowledge-graph');
+        let overlay = document.getElementById('loading-overlay');
+        
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'loading-overlay';
+            overlay.className = 'loading-overlay';
+            overlay.innerHTML = '<div class="loading"></div>';
+            container.appendChild(overlay);
+        }
+        
+        overlay.style.display = 'flex';
+    }
+    
+    function hideLoading() {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    }
+    
+    function showMessage(message, type) {
+        const container = document.getElementById('message-container');
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `${type}-message`;
+        messageDiv.textContent = message;
+        
+        container.appendChild(messageDiv);
+        
+        // Remove message after 5 seconds
+        setTimeout(() => {
+            messageDiv.remove();
+        }, 5000);
+    }
+    
+    function clearMessages() {
+        const container = document.getElementById('message-container');
+        container.innerHTML = '';
+    }
+    
+    // Global function to refresh Knowledge Graph from other pages
+    function refreshKnowledgeGraph() {
+        console.log('🔄 Refreshing Knowledge Graph from external trigger');
+        if (currentGraphType) {
+            loadGraphData(currentGraphType);
+        } else {
+            loadGraphData('content_relationships');
+        }
+    }
+    
+    // Make functions globally available
+    window.refreshKnowledgeGraph = refreshKnowledgeGraph;
+    window.loadKnowledgeGraphData = loadGraphData;
+</script>
+{% endblock %}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SEO Content Knowledge Graph System{% endblock %}</title>
+    
+    <!-- CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    {% include "components/base_styles.html" %}
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="min-h-screen flex">
+    {% include "components/sidebar_navigation.html" %}
+
+    <!-- Main Content -->
+    <div class="content-area flex-1 p-8">
+        {% include "components/page_header.html" %}
+
+        <!-- Page Content -->
+        {% block content %}{% endblock %}
+    </div>
+    
+    <!-- Workspace Management Modal -->
+    {% include "components/workspace_modal.html" %}
+    
+    <!-- Workspace Settings Modal -->
+    {% include "components/workspace_settings_modal.html" %}
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Page-specific scripts before Alpine.js -->
+    {% block extra_js_before_alpine %}{% endblock %}
+    
+    <!-- Workspace Manager - Load before Alpine.js -->
+    <script src="/static/js/workspace_manager.js"></script>
+    
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    {% include "components/base_scripts.html" %}
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

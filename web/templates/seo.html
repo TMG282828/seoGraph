@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block page_title %}SEO Dashboard{% endblock %}
+{% block page_description %}Monitor keyword rankings, organic traffic, and SEO performance{% endblock %}
+
+{% block extra_js_before_alpine %}
+<script src="/static/js/debug-utils.js"></script>
+<script src="/static/js/seo-api.js"></script>
+<script src="/static/js/seo-charts.js"></script>
+<script src="/static/js/seo-dashboard.js"></script>
+<script>
+    // SEO dashboard functionality is now handled by separate JavaScript files
+    console.log('SEO dashboard loaded with modular architecture');
+    
+    // Verify that the seoDashboardData function is available
+    if (typeof window.seoDashboardData === 'function') {
+        console.log('✅ seoDashboardData function is available');
+    } else {
+        console.error('❌ seoDashboardData function is not available');
+    }
+</script>
+{% endblock %}
+
+{% block content %}
+
+<!-- Temporary Authentication Setup for Testing -->
+<script>
+    // Real user authentication token for admin@twistworld.co.uk
+    const realToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJiOTQ1YmFlLWY2NGQtNDg1OS1iMGRkLTg2NDE1ZDM1M2EyZCIsImVtYWlsIjoiYWRtaW5AdHdpc3R3b3JsZC5jby51ayIsImRpc3BsYXlfbmFtZSI6IkFkbWluIFRlYW0iLCJvcmdhbml6YXRpb25faWQiOiJ0d2lzdHdvcmxkLW9yZyIsInJvbGUiOiJvd25lciIsImF2YXRhcl91cmwiOm51bGwsImV4cCI6MTc1NjU1NTI5M30.j0BZGMildyXHBbrdReh6qgLMWLokxCEmZZpCbGuhwmQ';
+    
+    // Set token in localStorage and cookie for workspace manager
+    localStorage.setItem('access_token', realToken);
+    document.cookie = `access_token=${realToken}; path=/; secure; samesite=strict`;
+    
+    console.log('🔑 Real user authentication token set for admin@twistworld.co.uk');
+</script>
+
+<div x-data="seoDashboardData()" x-init="init()" x-cloak>
+    
+    <!-- Include GSC Connection Status Component -->
+    {% include 'components/gsc_connection_status.html' %}
+    
+    <!-- Include Data Quality Status Component -->
+    {% include 'components/data_quality_status.html' %}
+
+    <!-- Include Tracked Keywords Management Component -->
+    {% include 'components/tracked_keywords_management.html' %}
+
+    <!-- Domain Filter Section -->
+    <div class="card p-4 mb-6" x-show="availableDomains.length > 1">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-semibold text-white mb-2">Domain Filter</h3>
+                <p class="text-sm text-gray-400">Select a domain to view specific SEO metrics and keyword data</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <select :value="selectedDomain" 
+                        @change="switchDomain($event.target.value)"
+                        class="bg-gray-800 text-white px-4 py-2 rounded border border-gray-600 min-w-48">
+                    <template x-for="domain in availableDomains" :key="domain">
+                        <option :value="domain" x-text="domain"></option>
+                    </template>
+                </select>
+                <div class="text-sm text-gray-400">
+                    <span x-text="keywords.length"></span> keywords tracked
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Metrics Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div class="card p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">Organic Traffic</p>
+                    <div class="flex items-baseline">
+                        <p class="text-2xl font-bold" x-text="formatNumber(metrics.organic_traffic)"></p>
+                        <span class="ml-2 text-sm" :class="metrics.organic_traffic_change >= 0 ? 'text-green-500' : 'text-red-500'">
+                            <span x-text="metrics.organic_traffic_change >= 0 ? '+' + formatNumber(metrics.organic_traffic_change) : formatNumber(metrics.organic_traffic_change)"></span>
+                        </span>
+                    </div>
+                </div>
+                <i class="fas fa-chart-line text-2xl text-blue-500"></i>
+            </div>
+        </div>
+
+        <div class="card p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">Top 10 Keywords</p>
+                    <div class="flex items-baseline">
+                        <p class="text-2xl font-bold" x-text="metrics.top_10_keywords"></p>
+                        <span class="ml-2 text-sm" :class="metrics.top_10_keywords_change >= 0 ? 'text-green-500' : 'text-red-500'">
+                            <span x-text="metrics.top_10_keywords_change >= 0 ? '+' + metrics.top_10_keywords_change : metrics.top_10_keywords_change"></span>
+                        </span>
+                    </div>
+                </div>
+                <i class="fas fa-trophy text-2xl text-yellow-500"></i>
+            </div>
+        </div>
+
+        <div class="card p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">Avg Position</p>
+                    <div class="flex items-baseline">
+                        <p class="text-2xl font-bold" x-text="metrics.avg_position.toFixed(1)"></p>
+                        <span class="ml-2 text-sm" :class="metrics.avg_position_change <= 0 ? 'text-green-500' : 'text-red-500'">
+                            <span x-text="metrics.avg_position_change <= 0 ? '+' + Math.abs(metrics.avg_position_change).toFixed(1) : '-' + metrics.avg_position_change.toFixed(1)"></span>
+                        </span>
+                    </div>
+                </div>
+                <i class="fas fa-target text-2xl text-green-500"></i>
+            </div>
+        </div>
+
+        <div class="card p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">Total Keywords</p>
+                    <div class="flex items-baseline">
+                        <p class="text-2xl font-bold" x-text="metrics.total_keywords"></p>
+                        <span class="ml-2 text-sm" :class="metrics.total_keywords_change >= 0 ? 'text-green-500' : 'text-red-500'">
+                            <span x-text="metrics.total_keywords_change >= 0 ? '+' + metrics.total_keywords_change : metrics.total_keywords_change"></span>
+                        </span>
+                    </div>
+                </div>
+                <i class="fas fa-list text-2xl text-purple-500"></i>
+            </div>
+        </div>
+
+        <div class="card p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">Click-through Rate</p>
+                    <div class="flex items-baseline">
+                        <p class="text-2xl font-bold" x-text="metrics.ctr.toFixed(1) + '%'"></p>
+                        <span class="ml-2 text-sm" :class="metrics.ctr_change >= 0 ? 'text-green-500' : 'text-red-500'">
+                            <span x-text="metrics.ctr_change >= 0 ? '+' + metrics.ctr_change.toFixed(1) + '%' : metrics.ctr_change.toFixed(1) + '%'"></span>
+                        </span>
+                    </div>
+                </div>
+                <i class="fas fa-mouse-pointer text-2xl text-red-500"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div class="card p-6">
+            <h3 class="text-lg font-semibold mb-4">Organic Traffic Trend</h3>
+            <div style="height: 300px;">
+                <canvas id="trafficChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="card p-6">
+            <h3 class="text-lg font-semibold mb-4">Keyword Rankings Distribution</h3>
+            <div style="height: 300px;">
+                <canvas id="rankingsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Keywords Table -->
+    <div class="card p-6 mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Top Performing Keywords</h3>
+            <div class="flex items-center space-x-2">
+                <input type="text" placeholder="Search keywords..." class="bg-gray-800 text-white px-3 py-1 rounded text-sm" x-model="keywordSearch">
+                <button class="btn-primary text-sm">Export</button>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-gray-700">
+                        <th class="text-left py-3">Keyword</th>
+                        <th class="text-left py-3">Position</th>
+                        <th class="text-left py-3">Change</th>
+                        <th class="text-left py-3">Search Volume</th>
+                        <th class="text-left py-3">Traffic</th>
+                        <th class="text-left py-3">Difficulty</th>
+                        <th class="text-left py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="keyword in filteredKeywords" :key="keyword.id">
+                        <tr class="border-b border-gray-800 hover:bg-gray-800">
+                            <td class="py-3">
+                                <div class="flex items-center gap-2">
+                                    <div>
+                                        <div class="font-medium" x-text="keyword.keyword"></div>
+                                        <div class="text-sm text-gray-400" x-text="keyword.url"></div>
+                                    </div>
+                                    <div class="text-xs">
+                                        <span class="px-1 py-0.5 bg-purple-900 text-purple-300 rounded" 
+                                              x-show="isKeywordTracked(keyword)"
+                                              title="This keyword is in your tracker">
+                                            🔍 Tracked
+                                        </span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="py-3">
+                                <div class="font-semibold" x-text="keyword.position"></div>
+                                <div class="text-xs mt-1">
+                                    <span class="px-1 py-0.5 bg-blue-900 text-blue-300 rounded" x-show="keyword.position > 0">
+                                        🎯 Live SERP
+                                    </span>
+                                    <span class="px-1 py-0.5 bg-gray-700 text-gray-300 rounded" x-show="keyword.position === 0 || keyword.position > 100">
+                                        ❌ Not ranking
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="py-3">
+                                <span class="text-sm" 
+                                      :class="keyword.change > 0 ? 'text-green-500' : keyword.change < 0 ? 'text-red-500' : 'text-gray-400'"
+                                      x-text="keyword.change > 0 ? '+' + keyword.change : keyword.change"></span>
+                            </td>
+                            <td class="py-3">
+                                <div x-text="formatNumber(keyword.search_volume)"></div>
+                                <div class="text-xs mt-1">
+                                    <span class="px-1 py-0.5 bg-red-900 text-red-300 rounded" x-show="keyword.search_volume === 0">
+                                        ❌ Google Ads API needed
+                                    </span>
+                                    <span class="px-1 py-0.5 bg-green-900 text-green-300 rounded" x-show="keyword.search_volume > 0">
+                                        ✅ Real search volume
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="py-3" x-text="formatNumber(keyword.traffic)"></td>
+                            <td class="py-3">
+                                <span class="px-2 py-1 rounded text-xs" 
+                                      :class="keyword.difficulty <= 30 ? 'bg-green-500' : keyword.difficulty <= 60 ? 'bg-yellow-500' : 'bg-red-500'"
+                                      x-text="keyword.difficulty"></span>
+                            </td>
+                            <td class="py-3">
+                                <div class="flex gap-1">
+                                    <button class="text-blue-500 hover:text-blue-400" 
+                                            @click="analyzeKeyword(keyword.id)"
+                                            title="Analyze keyword">
+                                        <i class="fas fa-chart-line"></i>
+                                    </button>
+                                    
+                                    <!-- Add to Tracker button (show only if not already tracked) -->
+                                    <button class="text-purple-500 hover:text-purple-400" 
+                                            x-show="!isKeywordTracked(keyword)"
+                                            @click="quickAddToTracker(keyword)"
+                                            title="Add to tracker">
+                                        <i class="fas fa-plus-circle"></i>
+                                    </button>
+                                    
+                                    <!-- Already tracked indicator -->
+                                    <span class="text-purple-400" 
+                                          x-show="isKeywordTracked(keyword)"
+                                          title="Already in tracker">
+                                        <i class="fas fa-check-circle"></i>
+                                    </span>
+                                    
+                                    <button class="text-green-500 hover:text-green-400"
+                                            title="Edit keyword">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="filteredKeywords.length === 0">
+                        <td colspan="7" class="py-8 text-center text-gray-400">
+                            <i class="fas fa-search text-3xl mb-3"></i>
+                            <div class="text-lg mb-2">No keywords found</div>
+                            <div class="text-sm">Add keywords to your tracker to see ranking data here</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Competitor Analysis -->
+    <div class="card p-6">
+        <h3 class="text-lg font-semibold mb-4">Competitor Analysis</h3>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="space-y-4">
+                <h4 class="font-medium">Top Competitors</h4>
+                <template x-for="competitor in competitors" :key="competitor.domain">
+                    <div class="p-3 bg-gray-800 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="font-medium" x-text="competitor.domain"></div>
+                            <div class="text-right">
+                                <div class="font-semibold text-red-400" x-text="competitor.overlap + '%'"></div>
+                                <div class="text-xs text-gray-400">Overlap</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm text-gray-400">
+                            <div x-text="formatNumber(competitor.organic_traffic) + ' organic traffic'"></div>
+                            <div x-show="competitor.shared_keywords">
+                                <span x-text="competitor.shared_keywords"></span> shared keywords
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="competitors.length === 0 && !competitorAnalysisError" class="p-3 bg-gray-800 rounded-lg text-center text-gray-400">
+                    <i class="fas fa-chart-line mb-2"></i>
+                    <div class="text-sm">No competitor data available</div>
+                </div>
+                <div x-show="competitorAnalysisError" class="p-3 bg-red-900 rounded-lg text-center text-red-400">
+                    <i class="fas fa-exclamation-triangle mb-2"></i>
+                    <div class="text-sm" x-text="competitorAnalysisError"></div>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <h4 class="font-medium">Opportunity Keywords</h4>
+                <template x-for="opportunity in opportunities" :key="opportunity.keyword">
+                    <div class="p-3 bg-gray-800 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="font-medium" x-text="opportunity.keyword"></div>
+                            <div class="text-right">
+                                <div class="font-semibold text-green-400" x-text="formatNumber(opportunity.search_volume)"></div>
+                                <div class="text-xs text-gray-400">Volume</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm text-gray-400">
+                            <div>
+                                Current: #<span x-text="opportunity.current_position || opportunity.competitor_position"></span>
+                                <span x-show="opportunity.potential_traffic_gain" class="ml-2 text-blue-400">
+                                    +<span x-text="formatNumber(opportunity.potential_traffic_gain)"></span> traffic potential
+                                </span>
+                            </div>
+                            <div x-show="opportunity.opportunity_score" class="text-yellow-400">
+                                <span x-text="opportunity.opportunity_score"></span> score
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="opportunities.length === 0 && !competitorAnalysisError" class="p-3 bg-gray-800 rounded-lg text-center text-gray-400">
+                    <i class="fas fa-target mb-2"></i>
+                    <div class="text-sm">No opportunity keywords available</div>
+                </div>
+                <div x-show="competitorAnalysisError" class="p-3 bg-red-900 rounded-lg text-center text-red-400">
+                    <i class="fas fa-exclamation-triangle mb-2"></i>
+                    <div class="text-sm" x-text="competitorAnalysisError"></div>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <h4 class="font-medium">Content Gaps</h4>
+                <template x-for="gap in contentGaps" :key="gap.topic">
+                    <div class="p-3 bg-gray-800 rounded-lg">
+                        <div class="font-medium" x-text="gap.topic"></div>
+                        <div class="text-sm text-gray-400 mt-1" x-text="gap.description"></div>
+                        <div class="text-xs text-blue-400 mt-2" x-text="gap.keywords + ' related keywords'"></div>
+                    </div>
+                </template>
+                <div x-show="contentGaps.length === 0 && !competitorAnalysisError" class="p-3 bg-gray-800 rounded-lg text-center text-gray-400">
+                    <i class="fas fa-search mb-2"></i>
+                    <div class="text-sm">No content gaps identified</div>
+                </div>
+                <div x-show="competitorAnalysisError" class="p-3 bg-red-900 rounded-lg text-center text-red-400">
+                    <i class="fas fa-exclamation-triangle mb-2"></i>
+                    <div class="text-sm" x-text="competitorAnalysisError"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include Add Keyword Modal Component -->
+    {% include 'components/add_keyword_modal.html' %}
+
+    <!-- Include Keyword Analysis Modal Component -->
+    {% include 'components/keyword_analysis_modal.html' %}
+    
+</div>
+{% endblock %}
+

@@ -1,0 +1,26 @@
+<!-- GSC Connection Status -->
+<div x-show="gscStatusChecked && !gscConnected" class="card p-4 mb-6 border-l-4 border-yellow-500">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center">
+            <i class="fab fa-google text-2xl text-yellow-500 mr-3"></i>
+            <div>
+                <h3 class="font-semibold" style="color: var(--text-primary);">Google Search Console Not Connected</h3>
+                <p class="text-sm text-gray-400">Configure your GSC credentials in settings to view real SEO performance data</p>
+            </div>
+        </div>
+        <a href="/settings" class="btn-primary inline-flex items-center">
+            <i class="fas fa-cog mr-2"></i>
+            Configure in Settings
+        </a>
+    </div>
+</div>
+
+<div x-show="gscStatusChecked && gscConnected" class="card p-4 mb-6 border-l-4 border-green-500">
+    <div class="flex items-center">
+        <i class="fab fa-google text-2xl text-green-500 mr-3"></i>
+        <div>
+            <h3 class="font-semibold" style="color: var(--text-primary);">Google Search Console Connected</h3>
+            <p class="text-sm text-gray-400">Showing real-time SEO performance data</p>
+        </div>
+    </div>
+</div>

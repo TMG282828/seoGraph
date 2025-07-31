@@ -1,0 +1,470 @@
+<!-- PRP Workflow Status Indicator -->
+<div class="card p-4 mb-6 border-l-4 border-blue-500" x-data="prpWorkflowStatus()" x-init="initPRPStatus()" x-show="hasActiveWorkflows">
+    <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center">
+            <i class="fas fa-project-diagram text-blue-500 mr-2"></i>
+            <h4 class="font-semibold text-sm">PRP Workflow Status</h4>
+            <span class="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full" x-text="activeWorkflows.length + ' active'"></span>
+        </div>
+        <button @click="showWorkflowDetails = !showWorkflowDetails" class="text-sm text-gray-500 hover:text-blue-500">
+            <i class="fas" :class="showWorkflowDetails ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        </button>
+    </div>
+    
+    <!-- Quick Status Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        <!-- Active Workflows Count -->
+        <div class="text-center p-2 bg-blue-50 rounded">
+            <div class="text-lg font-bold text-blue-600" x-text="activeWorkflows.length"></div>
+            <div class="text-xs text-blue-600">Active Workflows</div>
+        </div>
+        
+        <!-- Pending Checkpoints -->
+        <div class="text-center p-2 bg-orange-50 rounded">
+            <div class="text-lg font-bold text-orange-600" x-text="totalPendingCheckpoints"></div>
+            <div class="text-xs text-orange-600">Pending Reviews</div>
+        </div>
+        
+        <!-- Recent Completions -->
+        <div class="text-center p-2 bg-green-50 rounded">
+            <div class="text-lg font-bold text-green-600" x-text="recentCompletions"></div>
+            <div class="text-xs text-green-600">Completed Today</div>
+        </div>
+    </div>
+    
+    <!-- Detailed Workflow List -->
+    <div x-show="showWorkflowDetails" x-transition class="space-y-3">
+        <template x-for="workflow in activeWorkflows" :key="workflow.workflow_id">
+            <div class="border rounded-lg p-3" style="background-color: var(--bg-secondary); border-color: var(--border-color);">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center">
+                        <i class="fas fa-file-alt text-gray-400 mr-2"></i>
+                        <span class="font-medium text-sm" x-text="workflow.topic"></span>
+                        <span class="ml-2 px-2 py-1 text-xs rounded-full" 
+                              :class="getPhaseClass(workflow.current_phase)"
+                              x-text="formatPhase(workflow.current_phase)"></span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-gray-500" x-text="(workflow.progress_percentage || 0) + '%'"></span>
+                        <button @click="openWorkflow(workflow.workflow_id)" 
+                                class="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+                            Open
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                    <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                         :style="`width: ${workflow.progress_percentage || 0}%`"></div>
+                </div>
+                
+                <!-- Pending Checkpoints -->
+                <div x-show="workflow.has_pending_checkpoints" class="mt-2">
+                    <div class="flex items-center text-xs text-orange-600">
+                        <i class="fas fa-clock mr-1"></i>
+                        <span x-text="workflow.pending_checkpoints ? workflow.pending_checkpoints.length : 0"></span>
+                        <span class="ml-1">pending checkpoint(s)</span>
+                        <button @click="reviewCheckpoint(workflow.workflow_id)" 
+                                class="ml-2 px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200">
+                            Review
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Last Activity -->
+                <div class="text-xs text-gray-500 mt-1">
+                    <i class="fas fa-clock mr-1"></i>
+                    <span>Last updated: </span>
+                    <span x-text="formatTime(workflow.updated_at)"></span>
+                </div>
+            </div>
+        </template>
+        
+        <!-- No Active Workflows -->
+        <div x-show="activeWorkflows.length === 0" class="text-center py-4 text-gray-500">
+            <i class="fas fa-clipboard-list text-2xl mb-2"></i>
+            <p class="text-sm">No active PRP workflows</p>
+            <button @click="startNewWorkflow()" class="mt-2 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
+                Start New Workflow
+            </button>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="flex justify-between items-center mt-3 pt-3 border-t" style="border-color: var(--border-color);" x-show="hasActiveWorkflows">
+        <button @click="refreshWorkflows()" 
+                class="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                :disabled="isRefreshing">
+            <i class="fas fa-sync-alt mr-1" :class="{'fa-spin': isRefreshing}"></i>
+            Refresh
+        </button>
+        
+        <div class="flex space-x-2">
+            <button @click="showNextPendingCheckpoint()" 
+                    x-show="totalPendingCheckpoints > 0"
+                    class="text-xs px-3 py-1 bg-orange-600 text-white rounded hover:bg-orange-700">
+                <i class="fas fa-eye mr-1"></i>
+                Next Review
+            </button>
+            
+            <button @click="startNewWorkflow()" 
+                    class="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+                <i class="fas fa-plus mr-1"></i>
+                New Workflow
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- PRP Workflow Modal (for detailed workflow management) -->
+<div x-show="showWorkflowModal" 
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+     @click.away="showWorkflowModal = false">
+    
+    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-screen overflow-y-auto"
+         @click.stop>
+        
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between p-6 border-b">
+            <div>
+                <h3 class="text-lg font-semibold" x-text="selectedWorkflow?.topic ? 'Workflow: ' + selectedWorkflow.topic : 'PRP Workflow'"></h3>
+                <p class="text-sm text-gray-600" x-text="selectedWorkflow?.workflow_id ? 'ID: ' + selectedWorkflow.workflow_id : ''"></p>
+            </div>
+            <button @click="showWorkflowModal = false" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <!-- Modal Content -->
+        <div class="p-6" x-show="selectedWorkflow">
+            <!-- Workflow Progress -->
+            <div class="mb-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium">Progress</span>
+                    <span class="text-sm text-gray-600" x-text="(selectedWorkflow?.progress_percentage || 0) + '%'"></span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div class="bg-blue-600 h-3 rounded-full transition-all duration-300" 
+                         :style="`width: ${selectedWorkflow?.progress_percentage || 0}%`"></div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Brief Analysis</span>
+                    <span>Planning</span>
+                    <span>Requirements</span>
+                    <span>Process</span>
+                    <span>Generation</span>
+                    <span>Complete</span>
+                </div>
+            </div>
+            
+            <!-- Current Phase Status -->
+            <div class="mb-6 p-4 bg-blue-50 rounded-lg">
+                <div class="flex items-center mb-2">
+                    <i class="fas fa-info-circle text-blue-600 mr-2"></i>
+                    <span class="font-medium text-blue-800">Current Phase</span>
+                </div>
+                <p class="text-blue-700" x-text="formatPhase(selectedWorkflow?.current_phase || 'unknown')"></p>
+                <p class="text-sm text-blue-600 mt-1" x-text="getPhaseDescription(selectedWorkflow?.current_phase || 'unknown')"></p>
+            </div>
+            
+            <!-- Pending Checkpoints -->
+            <div class="mb-6" x-show="selectedWorkflow?.pending_checkpoints && selectedWorkflow.pending_checkpoints.length > 0">
+                <h4 class="font-medium mb-3 flex items-center">
+                    <i class="fas fa-tasks text-orange-600 mr-2"></i>
+                    Pending Reviews
+                </h4>
+                <div class="space-y-3">
+                    <template x-for="checkpoint in selectedWorkflow?.pending_checkpoints || []" :key="checkpoint.id">
+                        <div class="border border-orange-200 rounded-lg p-4 bg-orange-50">
+                            <div class="flex items-center justify-between mb-2">
+                                <h5 class="font-medium text-orange-800" x-text="checkpoint.title"></h5>
+                                <span class="px-2 py-1 text-xs bg-orange-200 text-orange-800 rounded" x-text="checkpoint.status"></span>
+                            </div>
+                            <p class="text-sm text-orange-700 mb-3" x-text="checkpoint.description"></p>
+                            <div class="flex space-x-2">
+                                <button @click="approveCheckpoint(checkpoint.id)" 
+                                        class="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700">
+                                    <i class="fas fa-check mr-1"></i>Approve
+                                </button>
+                                <button @click="rejectCheckpoint(checkpoint.id)" 
+                                        class="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700">
+                                    <i class="fas fa-times mr-1"></i>Reject
+                                </button>
+                                <button @click="modifyCheckpoint(checkpoint.id)" 
+                                        class="px-3 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700">
+                                    <i class="fas fa-edit mr-1"></i>Modify
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- Workflow Actions -->
+            <div class="flex justify-between pt-4 border-t">
+                <button @click="cancelWorkflow(selectedWorkflow.workflow_id)" 
+                        class="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700">
+                    <i class="fas fa-stop mr-2"></i>Cancel Workflow
+                </button>
+                
+                <div class="flex space-x-2">
+                    <button @click="downloadWorkflowReport()" 
+                            class="px-4 py-2 text-sm bg-gray-600 text-white rounded hover:bg-gray-700">
+                        <i class="fas fa-download mr-2"></i>Export Report
+                    </button>
+                    <button @click="showWorkflowModal = false" 
+                            class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function prpWorkflowStatus() {
+    return {
+        // State
+        activeWorkflows: [],
+        hasActiveWorkflows: false,
+        showWorkflowDetails: false,
+        showWorkflowModal: false,
+        selectedWorkflow: null,
+        isRefreshing: false,
+        totalPendingCheckpoints: 0,
+        recentCompletions: 0,
+        
+        // Initialization
+        async initPRPStatus() {
+            await this.loadActiveWorkflows();
+            // Poll for updates every 30 seconds
+            setInterval(() => this.loadActiveWorkflows(), 30000);
+        },
+        
+        // Data Loading
+        async loadActiveWorkflows() {
+            try {
+                const response = await fetch('/api/prp-workflow/workflows/active');
+                if (!response.ok) {
+                    console.log('PRP Workflow not available');
+                    this.hasActiveWorkflows = false;
+                    return;
+                }
+                
+                const data = await response.json();
+                this.activeWorkflows = data.workflows || [];
+                this.hasActiveWorkflows = this.activeWorkflows.length > 0;
+                
+                // Calculate pending checkpoints
+                this.totalPendingCheckpoints = this.activeWorkflows.reduce((total, workflow) => {
+                    return total + (workflow.pending_checkpoints ? workflow.pending_checkpoints.length : 0);
+                }, 0);
+                
+                // Mock recent completions (would be calculated from API)
+                this.recentCompletions = 2;
+                
+            } catch (error) {
+                console.warn('Failed to load PRP workflows:', error);
+                this.hasActiveWorkflows = false;
+            }
+        },
+        
+        async refreshWorkflows() {
+            this.isRefreshing = true;
+            await this.loadActiveWorkflows();
+            this.isRefreshing = false;
+        },
+        
+        // Workflow Actions
+        async openWorkflow(workflowId) {
+            try {
+                const response = await fetch(`/api/prp-workflow/status/${workflowId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.selectedWorkflow = data;
+                    this.showWorkflowModal = true;
+                }
+            } catch (error) {
+                console.error('Failed to load workflow details:', error);
+            }
+        },
+        
+        async reviewCheckpoint(workflowId) {
+            try {
+                const response = await fetch(`/api/prp-workflow/checkpoint/${workflowId}/next`);
+                const data = await response.json();
+                
+                if (data.success && data.checkpoint) {
+                    // Open workflow modal with focus on checkpoint
+                    await this.openWorkflow(workflowId);
+                }
+            } catch (error) {
+                console.error('Failed to load checkpoint:', error);
+            }
+        },
+        
+        async approveCheckpoint(checkpointId) {
+            await this.respondToCheckpoint(checkpointId, 'approved');
+        },
+        
+        async rejectCheckpoint(checkpointId) {
+            const feedback = prompt('Please provide feedback for rejection:');
+            if (feedback !== null) {
+                await this.respondToCheckpoint(checkpointId, 'rejected', feedback);
+            }
+        },
+        
+        async modifyCheckpoint(checkpointId) {
+            const feedback = prompt('Please provide modification instructions:');
+            if (feedback !== null) {
+                await this.respondToCheckpoint(checkpointId, 'modified', feedback);
+            }
+        },
+        
+        async respondToCheckpoint(checkpointId, status, feedback = null) {
+            try {
+                const response = await fetch('/api/prp-workflow/checkpoint/respond', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        workflow_id: this.selectedWorkflow.workflow_id,
+                        checkpoint_id: checkpointId,
+                        status: status,
+                        feedback: feedback
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Refresh workflow data
+                    await this.openWorkflow(this.selectedWorkflow.workflow_id);
+                    await this.loadActiveWorkflows();
+                }
+            } catch (error) {
+                console.error('Failed to respond to checkpoint:', error);
+            }
+        },
+        
+        async startNewWorkflow() {
+            // Integration with existing content generation form
+            this.showWorkflowModal = false;
+            // This would trigger the PRP workflow mode in the main content generation UI
+            if (window.contentStudio) {
+                window.contentStudio().enablePRPWorkflow();
+            }
+        },
+        
+        async showNextPendingCheckpoint() {
+            const workflowWithPending = this.activeWorkflows.find(w => w.has_pending_checkpoints);
+            if (workflowWithPending) {
+                await this.reviewCheckpoint(workflowWithPending.workflow_id);
+            }
+        },
+        
+        async cancelWorkflow(workflowId) {
+            if (confirm('Are you sure you want to cancel this workflow?')) {
+                try {
+                    const response = await fetch(`/api/prp-workflow/workflow/${workflowId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (response.ok) {
+                        this.showWorkflowModal = false;
+                        await this.loadActiveWorkflows();
+                    }
+                } catch (error) {
+                    console.error('Failed to cancel workflow:', error);
+                }
+            }
+        },
+        
+        downloadWorkflowReport() {
+            // Generate and download workflow report
+            const report = {
+                workflow_id: this.selectedWorkflow.workflow_id,
+                topic: this.selectedWorkflow.topic,
+                current_phase: this.selectedWorkflow.current_phase,
+                progress: this.selectedWorkflow.progress_percentage,
+                checkpoints: this.selectedWorkflow.pending_checkpoints,
+                generated_at: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `prp_workflow_${this.selectedWorkflow.workflow_id}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
+        
+        // Utility Functions
+        formatPhase(phase) {
+            const phaseNames = {
+                'brief_analysis': 'Brief Analysis',
+                'planning': 'Planning',
+                'requirements': 'Requirements',
+                'process': 'Process Definition',
+                'generation': 'Content Generation',
+                'review': 'Final Review',
+                'complete': 'Complete'
+            };
+            return phaseNames[phase] || phase;
+        },
+        
+        getPhaseClass(phase) {
+            const classes = {
+                'brief_analysis': 'bg-blue-100 text-blue-800',
+                'planning': 'bg-purple-100 text-purple-800',
+                'requirements': 'bg-yellow-100 text-yellow-800',
+                'process': 'bg-orange-100 text-orange-800',
+                'generation': 'bg-green-100 text-green-800',
+                'review': 'bg-indigo-100 text-indigo-800',
+                'complete': 'bg-gray-100 text-gray-800'
+            };
+            return classes[phase] || 'bg-gray-100 text-gray-800';
+        },
+        
+        getPhaseDescription(phase) {
+            const descriptions = {
+                'brief_analysis': 'Analyzing your content brief and extracting key requirements',
+                'planning': 'Creating comprehensive content strategy and structure',
+                'requirements': 'Defining specific content requirements and constraints',
+                'process': 'Outlining the detailed content creation process',
+                'generation': 'Generating the actual content based on your requirements',
+                'review': 'Performing final quality assurance and optimization',
+                'complete': 'Workflow completed successfully'
+            };
+            return descriptions[phase] || 'Working on your content...';
+        },
+        
+        formatTime(timestamp) {
+            try {
+                const date = new Date(timestamp);
+                const now = new Date();
+                const diffMinutes = Math.floor((now - date) / (1000 * 60));
+                
+                if (diffMinutes < 1) return 'Just now';
+                if (diffMinutes < 60) return `${diffMinutes}m ago`;
+                if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+                return date.toLocaleDateString();
+            } catch {
+                return 'Recently';
+            }
+        }
+    }
+}
+</script>

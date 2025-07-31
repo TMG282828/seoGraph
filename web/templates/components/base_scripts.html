@@ -1,0 +1,242 @@
+<!-- Common JavaScript -->
+<script>
+    // API helper functions
+    const API_BASE = '';
+
+    async function apiCall(endpoint, options = {}) {
+        try {
+            const response = await fetch(`${API_BASE}${endpoint}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('API call failed:', error);
+            throw error;
+        }
+    }
+
+    // Show loading state
+    function showLoading(elementId) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.innerHTML = '<div class="loading mx-auto"></div>';
+        }
+    }
+
+    // Show error message
+    function showError(elementId, message) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.innerHTML = `<div class="text-red-500 text-center">${message}</div>`;
+        }
+    }
+
+    // Format numbers
+    function formatNumber(num) {
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num.toString();
+    }
+
+    // Update timestamps
+    function updateTimestamps() {
+        document.querySelectorAll('[data-timestamp]').forEach(element => {
+            const timestamp = new Date(element.dataset.timestamp);
+            const now = new Date();
+            const diff = now - timestamp;
+            
+            if (diff < 60000) {
+                element.textContent = 'Just now';
+            } else if (diff < 3600000) {
+                element.textContent = Math.floor(diff / 60000) + 'm ago';
+            } else if (diff < 86400000) {
+                element.textContent = Math.floor(diff / 3600000) + 'h ago';
+            } else {
+                element.textContent = Math.floor(diff / 86400000) + 'd ago';
+            }
+        });
+    }
+
+    // Update timestamps every minute
+    setInterval(updateTimestamps, 60000);
+    updateTimestamps();
+
+    // Toast notification system
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.textContent = message;
+        toast.className = `fixed top-4 right-4 px-4 py-2 rounded-lg text-white z-50 transition-all duration-300 ${
+            type === 'error' ? 'bg-red-500' : 
+            type === 'warning' ? 'bg-yellow-500' : 
+            type === 'info' ? 'bg-blue-500' : 
+            'bg-green-500'
+        }`;
+        
+        document.body.appendChild(toast);
+        
+        // Animate in
+        setTimeout(() => {
+            toast.style.transform = 'translateX(0)';
+            toast.style.opacity = '1';
+        }, 100);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            toast.style.transform = 'translateX(100%)';
+            toast.style.opacity = '0';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
+    }
+    
+    // Make showToast globally available
+    window.showToast = showToast;
+
+    // Global theme management
+    let currentTheme = localStorage.getItem('theme') || 'dark';
+    
+    function updateTheme() {
+        const body = document.body;
+        const toggleBtn = document.getElementById('global-theme-toggle');
+        const icon = toggleBtn.querySelector('i');
+        const text = toggleBtn.querySelector('span');
+        
+        if (currentTheme === 'light') {
+            body.classList.add('theme-light');
+            body.classList.remove('theme-dark');
+            icon.className = 'fas fa-sun text-sm';
+            text.textContent = 'Light';
+        } else {
+            body.classList.add('theme-dark');
+            body.classList.remove('theme-light');
+            icon.className = 'fas fa-moon text-sm';
+            text.textContent = 'Dark';
+        }
+        
+        localStorage.setItem('theme', currentTheme);
+    }
+    
+    function toggleTheme() {
+        currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+        updateTheme();
+    }
+    
+    // Initialize theme on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        updateTheme();
+        
+        // Add event listener to toggle button
+        const toggleBtn = document.getElementById('global-theme-toggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', toggleTheme);
+        }
+        
+        // Authentication initialization
+        initAuthentication();
+    });
+
+    // Authentication functions
+    function initAuthentication() {
+        console.log('Setting up user interface for pathname:', window.location.pathname);
+        
+        // Skip setup on login page
+        if (window.location.pathname === '/login') {
+            return;
+        }
+        
+        // For other pages, assume we're authenticated if we reach here (AuthMiddleware handles auth)
+        // Use default user info since we don't have a user info endpoint yet
+        const user = { display_name: 'User' };
+        
+        console.log('Setting up authenticated user interface');
+        
+        // Update user display
+        const userNameEl = document.getElementById('userName');
+        if (userNameEl && user.display_name) {
+            userNameEl.textContent = user.display_name;
+        }
+        
+        // Setup user menu
+        const userMenuBtn = document.getElementById('userMenuBtn');
+        const userMenu = document.getElementById('userMenu');
+        const logoutBtn = document.getElementById('logoutBtn');
+        
+        if (userMenuBtn && userMenu) {
+            userMenuBtn.addEventListener('click', function() {
+                userMenu.classList.toggle('hidden');
+            });
+            
+            // Close menu when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!userMenuBtn.contains(e.target) && !userMenu.contains(e.target)) {
+                    userMenu.classList.add('hidden');
+                }
+            });
+        }
+        
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', logout);
+        }
+    }
+    
+    async function logout() {
+        try {
+            // Call logout API to clear server-side cookies
+            await fetch('/api/auth/logout', {
+                method: 'POST',
+                credentials: 'include', // Include cookies
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            // Clear local storage
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            
+            // Clear all cookies by setting them to expire
+            document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            document.cookie = 'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            
+            // Redirect to login
+            window.location.href = '/login';
+        }
+    }
+    
+    // Add auth token to all API calls
+    const originalFetch = window.fetch;
+    window.fetch = function(...args) {
+        const [url, options = {}] = args;
+        
+        // Add auth header for API calls
+        if (url.startsWith('/api/') && url !== '/api/auth/login' && url !== '/api/auth/register') {
+            const accessToken = localStorage.getItem('access_token');
+            if (accessToken) {
+                options.headers = {
+                    ...options.headers,
+                    'Authorization': `Bearer ${accessToken}`
+                };
+            }
+        }
+        
+        return originalFetch.apply(this, [url, options]);
+    };
+</script>

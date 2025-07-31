@@ -1,0 +1,417 @@
+<!-- Workspace Settings Modal -->
+<div x-data="workspaceSettings()" 
+     x-show="Alpine.store('workspace').showSettingsModal" 
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 scale-95"
+     x-transition:enter-end="opacity-100 scale-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100 scale-100"
+     x-transition:leave-end="opacity-0 scale-95"
+     class="fixed inset-0 z-50 flex items-center justify-center p-4" 
+     style="background-color: rgba(0, 0, 0, 0.5);" 
+     @click.self="closeSettingsModal()">
+    
+    <div class="bg-gray-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between p-6 border-b border-gray-700">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-cogs text-white text-sm"></i>
+                </div>
+                <div>
+                    <h2 class="text-xl font-semibold text-white">Workspace Settings</h2>
+                    <p class="text-sm text-gray-400" x-text="settings?.workspace_name || 'Loading...'"></p>
+                </div>
+            </div>
+            <button @click="closeSettingsModal()" class="text-gray-400 hover:text-white transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="flex border-b border-gray-700">
+            <button @click="activeTab = 'profile'" 
+                    :class="activeTab === 'profile' ? 'border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'" 
+                    class="px-6 py-3 border-b-2 font-medium text-sm transition-colors">
+                <i class="fas fa-user-circle mr-2"></i>
+                Profile
+            </button>
+            <button @click="activeTab = 'members'" 
+                    :class="activeTab === 'members' ? 'border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'" 
+                    class="px-6 py-3 border-b-2 font-medium text-sm transition-colors">
+                <i class="fas fa-users mr-2"></i>
+                Members
+            </button>
+            <button @click="activeTab = 'usage'" 
+                    :class="activeTab === 'usage' ? 'border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'" 
+                    class="px-6 py-3 border-b-2 font-medium text-sm transition-colors">
+                <i class="fas fa-chart-bar mr-2"></i>
+                Usage
+            </button>
+        </div>
+
+        <!-- Modal Content -->
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+            
+            <!-- Profile Tab -->
+            <div x-show="activeTab === 'profile'" x-transition>
+                <form @submit.prevent="updateProfile()">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Workspace Name</label>
+                            <input type="text" 
+                                   x-model="profileForm.workspace_name" 
+                                   class="w-full bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+                                   placeholder="Enter workspace name"
+                                   required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                            <textarea x-model="profileForm.description" 
+                                      rows="3"
+                                      class="w-full bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none resize-none"
+                                      placeholder="Describe your workspace..."></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Avatar URL (Optional)</label>
+                            <input type="url" 
+                                   x-model="profileForm.avatar_url" 
+                                   class="w-full bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+                                   placeholder="https://example.com/avatar.png">
+                        </div>
+                        
+                        <div class="flex justify-end space-x-3">
+                            <button type="button" @click="loadSettings()" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" 
+                                    :disabled="profileLoading"
+                                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                <span x-show="!profileLoading">Save Profile</span>
+                                <span x-show="profileLoading">Saving...</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Members Tab -->
+            <div x-show="activeTab === 'members'" x-transition>
+                <form @submit.prevent="updateMemberSettings()">
+                    <div class="space-y-6">
+                        <!-- Current Usage Overview -->
+                        <div class="bg-gray-800 rounded-lg p-4">
+                            <h3 class="text-lg font-medium text-white mb-3">Member Overview</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-blue-400" x-text="usageStats?.seats?.used || 0"></div>
+                                    <div class="text-sm text-gray-400">Current Members</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-green-400" x-text="usageStats?.seats?.available || 0"></div>
+                                    <div class="text-sm text-gray-400">Available Seats</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold text-yellow-400" x-text="Math.round(usageStats?.seats?.percentage || 0) + '%'"></div>
+                                    <div class="text-sm text-gray-400">Usage</div>
+                                </div>
+                            </div>
+                            <!-- Usage Bar -->
+                            <div class="mt-4">
+                                <div class="bg-gray-700 rounded-full h-2">
+                                    <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                                         :style="`width: ${Math.min(usageStats?.seats?.percentage || 0, 100)}%`"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Seat Limit</label>
+                            <select x-model.number="memberForm.seat_limit" 
+                                    class="w-full bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none">
+                                <option value="5">5 seats</option>
+                                <option value="10">10 seats</option>
+                                <option value="25">25 seats</option>
+                                <option value="50">50 seats</option>
+                                <option value="100">100 seats</option>
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">Maximum number of workspace members</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Default Member Role</label>
+                            <select x-model="memberForm.default_member_role" 
+                                    class="w-full bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none">
+                                <option value="viewer">Viewer</option>
+                                <option value="member">Member</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">Role assigned to new members by default</p>
+                        </div>
+                        
+                        <div>
+                            <label class="flex items-center">
+                                <input type="checkbox" 
+                                       x-model="memberForm.auto_approve_invites" 
+                                       class="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500">
+                                <span class="ml-3 text-sm text-gray-300">Auto-approve invite codes</span>
+                            </label>
+                            <p class="text-xs text-gray-400 mt-1 ml-7">Automatically activate invite codes without manual approval</p>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-3">
+                            <button type="button" @click="loadSettings()" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">
+                                Cancel
+                            </button>
+                            <button type="submit" 
+                                    :disabled="memberLoading"
+                                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                <span x-show="!memberLoading">Save Settings</span>
+                                <span x-show="memberLoading">Saving...</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Usage Tab -->
+            <div x-show="activeTab === 'usage'" x-transition>
+                <div class="space-y-6">
+                    <h3 class="text-lg font-medium text-white">Usage Statistics</h3>
+                    
+                    <!-- Seats Usage -->
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-medium text-white">Team Seats</h4>
+                            <span class="text-sm text-gray-400" x-text="`${usageStats?.seats?.used || 0} of ${usageStats?.seats?.limit || 0}`"></span>
+                        </div>
+                        <div class="bg-gray-700 rounded-full h-3 mb-2">
+                            <div class="bg-blue-500 h-3 rounded-full transition-all duration-300" 
+                                 :style="`width: ${Math.min(usageStats?.seats?.percentage || 0, 100)}%`"></div>
+                        </div>
+                        <p class="text-sm text-gray-400">
+                            <span x-text="usageStats?.seats?.available || 0"></span> seats available
+                        </p>
+                    </div>
+                    
+                    <!-- Storage Usage -->
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-medium text-white">Storage</h4>
+                            <span class="text-sm text-gray-400" x-text="`${usageStats?.storage?.used_gb || 0} GB of ${usageStats?.storage?.limit_gb || 0} GB`"></span>
+                        </div>
+                        <div class="bg-gray-700 rounded-full h-3 mb-2">
+                            <div class="bg-green-500 h-3 rounded-full transition-all duration-300" 
+                                 :style="`width: ${Math.min(usageStats?.storage?.percentage || 0, 100)}%`"></div>
+                        </div>
+                        <p class="text-sm text-gray-400">Storage usage for documents and content</p>
+                    </div>
+                    
+                    <!-- API Calls Usage -->
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-medium text-white">API Calls</h4>
+                            <span class="text-sm text-gray-400" x-text="`${usageStats?.api_calls?.used_this_month || 0} of ${usageStats?.api_calls?.limit_monthly || 0}`"></span>
+                        </div>
+                        <div class="bg-gray-700 rounded-full h-3 mb-2">
+                            <div class="bg-yellow-500 h-3 rounded-full transition-all duration-300" 
+                                 :style="`width: ${Math.min(usageStats?.api_calls?.percentage || 0, 100)}%`"></div>
+                        </div>
+                        <p class="text-sm text-gray-400">API calls used this month</p>
+                    </div>
+                    
+                    <!-- Refresh Button -->
+                    <div class="flex justify-end">
+                        <button @click="refreshUsage()" 
+                                :disabled="usageLoading"
+                                class="px-6 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <i class="fas fa-sync-alt mr-2" :class="{'fa-spin': usageLoading}"></i>
+                            <span x-show="!usageLoading">Refresh Usage</span>
+                            <span x-show="usageLoading">Refreshing...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function workspaceSettings() {
+    return {
+        activeTab: 'profile',
+        settings: null,
+        usageStats: null,
+        
+        // Loading states
+        profileLoading: false,
+        memberLoading: false,
+        usageLoading: false,
+        
+        // Form data
+        profileForm: {
+            workspace_name: '',
+            description: '',
+            avatar_url: ''
+        },
+        
+        memberForm: {
+            seat_limit: 5,
+            default_member_role: 'member',
+            auto_approve_invites: false
+        },
+        
+        async init() {
+            this.$watch('$store.workspace.showSettingsModal', (show) => {
+                if (show) {
+                    this.loadSettings();
+                }
+            });
+        },
+        
+        closeSettingsModal() {
+            Alpine.store('workspace').showSettingsModal = false;
+        },
+        
+        async loadSettings() {
+            try {
+                const currentWorkspace = Alpine.store('workspace').current;
+                if (!currentWorkspace?.id) {
+                    console.error('No current workspace selected');
+                    return;
+                }
+                
+                const response = await fetch(`/api/workspaces/${currentWorkspace.id}/settings`, {
+                    headers: {
+                        'Authorization': `Bearer ${Alpine.store('workspace').getAuthToken()}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.settings = data.settings;
+                    this.usageStats = data.usage_stats;
+                    
+                    // Update form data
+                    this.profileForm = {
+                        workspace_name: data.settings.workspace_name || '',
+                        description: data.settings.description || '',
+                        avatar_url: data.settings.avatar_url || ''
+                    };
+                    
+                    this.memberForm = {
+                        seat_limit: data.settings.seat_limit || 5,
+                        default_member_role: data.settings.default_member_role || 'member',
+                        auto_approve_invites: data.settings.auto_approve_invites || false
+                    };
+                } else {
+                    console.error('Failed to load workspace settings');
+                    this.showNotification('Failed to load workspace settings', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading workspace settings:', error);
+                this.showNotification('Error loading workspace settings', 'error');
+            }
+        },
+        
+        async updateProfile() {
+            this.profileLoading = true;
+            try {
+                const currentWorkspace = Alpine.store('workspace').current;
+                const response = await fetch(`/api/workspaces/${currentWorkspace.id}/settings`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${Alpine.store('workspace').getAuthToken()}`
+                    },
+                    body: JSON.stringify(this.profileForm)
+                });
+                
+                if (response.ok) {
+                    await this.loadSettings();
+                    this.showNotification('Profile updated successfully', 'success');
+                    // Update workspace name in store
+                    Alpine.store('workspace').current.name = this.profileForm.workspace_name;
+                    // Refresh workspace store to update all UI components
+                    await Alpine.store('workspace').refresh();
+                    // Dispatch workspace updated event
+                    window.dispatchEvent(new CustomEvent('workspace-updated', { 
+                        detail: { workspace: Alpine.store('workspace').current } 
+                    }));
+                } else {
+                    this.showNotification('Failed to update profile', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                this.showNotification('Error updating profile', 'error');
+            } finally {
+                this.profileLoading = false;
+            }
+        },
+        
+        async updateMemberSettings() {
+            this.memberLoading = true;
+            try {
+                const currentWorkspace = Alpine.store('workspace').current;
+                const response = await fetch(`/api/workspaces/${currentWorkspace.id}/settings/members`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${Alpine.store('workspace').getAuthToken()}`
+                    },
+                    body: JSON.stringify(this.memberForm)
+                });
+                
+                if (response.ok) {
+                    await this.loadSettings();
+                    this.showNotification('Member settings updated successfully', 'success');
+                } else {
+                    this.showNotification('Failed to update member settings', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating member settings:', error);
+                this.showNotification('Error updating member settings', 'error');
+            } finally {
+                this.memberLoading = false;
+            }
+        },
+        
+        async refreshUsage() {
+            this.usageLoading = true;
+            try {
+                const currentWorkspace = Alpine.store('workspace').current;
+                const response = await fetch(`/api/workspaces/${currentWorkspace.id}/settings/usage`, {
+                    headers: {
+                        'Authorization': `Bearer ${Alpine.store('workspace').getAuthToken()}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.usageStats = data.usage;
+                    this.showNotification('Usage refreshed', 'success');
+                } else {
+                    this.showNotification('Failed to refresh usage', 'error');
+                }
+            } catch (error) {
+                console.error('Error refreshing usage:', error);
+                this.showNotification('Error refreshing usage', 'error');
+            } finally {
+                this.usageLoading = false;
+            }
+        },
+        
+        showNotification(message, type = 'info') {
+            // Use existing notification system if available
+            if (window.showNotification) {
+                window.showNotification(message, type);
+            } else {
+                // Fallback to alert
+                alert(message);
+            }
+        }
+    };
+}
+</script>

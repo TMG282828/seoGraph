@@ -1,0 +1,6 @@
+{
+  "scraper_type": "custom",
+  "custom_scraper_url": "http://host.docker.internal:8002",
+  "search_console": false,
+  "custom_scraper_enabled": true
+}

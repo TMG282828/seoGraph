@@ -1,0 +1,1713 @@
+{% extends "base.html" %}
+
+{% block page_title %}Content Studio{% endblock %}
+{% block page_description %}Generate high-quality content using AI-powered brief analysis and conversational content creation{% endblock %}
+
+{% block extra_js_before_alpine %}
+<!-- Chat message styling -->
+<style>
+/* Error message specific styles */
+.message-bubble.error-message {
+    border-left: 4px solid var(--error-color, #e53e3e);
+    background-color: rgba(229, 62, 62, 0.1);
+}
+
+.error-avatar {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: var(--accent-danger);
+}
+
+.message-bubble.error-message .message-content {
+    color: var(--accent-danger);
+}
+
+/* Enhanced message styling */
+.message-bubble {
+    padding: 12px;
+    margin-bottom: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.user-message {
+    background-color: rgba(59, 130, 246, 0.1);
+    border-left: 4px solid #3b82f6;
+}
+
+.assistant-message {
+    background-color: rgba(16, 185, 129, 0.1);
+    border-left: 4px solid #10b981;
+}
+
+.system-message {
+    background-color: rgba(107, 114, 128, 0.1);
+    border-left: 4px solid #6b7280;
+}
+
+.avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.user-avatar {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: var(--accent-primary);
+}
+
+.assistant-avatar {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: var(--accent-secondary);
+}
+
+.system-avatar {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+/* Ensure message content uses theme-aware colors */
+.message-content {
+    color: var(--text-primary);
+}
+
+.message-text {
+    color: var(--text-primary);
+}
+
+/* Specific message type content colors */
+.user-message .message-content {
+    color: var(--text-primary);
+}
+
+.assistant-message .message-content {
+    color: var(--text-primary);
+}
+
+.system-message .message-content {
+    color: var(--text-secondary);
+}
+</style>
+
+<!-- Ensure showToast is available before Alpine loads -->
+<script>
+// Toast notification system (duplicate from base_scripts for early availability)
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.className = `fixed top-4 right-4 px-4 py-2 rounded-lg text-white z-50 transition-all duration-300 ${
+        type === 'error' ? 'bg-red-500' : 
+        type === 'warning' ? 'bg-yellow-500' : 
+        type === 'info' ? 'bg-blue-500' : 
+        'bg-green-500'
+    }`;
+    
+    document.body.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => {
+        toast.style.transform = 'translateX(0)';
+        toast.style.opacity = '1';
+    }, 100);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.style.transform = 'translateX(100%)';
+        toast.style.opacity = '0';
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, 3000);
+}
+
+// Make showToast globally available
+window.showToast = showToast;
+
+// ContentStudio Alpine.js component function
+function contentStudio() {
+    return {
+        // State variables
+        uploadProgress: 0,
+        analysisResults: null,
+        recentContent: [],
+        initialized: false,
+        loadingRecentContent: false,
+        
+        // Brief management
+        uploadedBrief: false,
+        briefContent: '',
+        briefSummary: {
+            title: '',
+            summary: '',
+            wordCount: 0,
+            keywords: []
+        },
+        showUrlImport: false,
+        showManualBrief: false,
+        urlToImport: '',
+        manualBrief: '',
+        currentBriefId: null,
+        savedBriefs: [],
+        databaseAvailable: true,
+        
+        // Human-in-Loop Settings (Context.ai style)
+        humanInLoopSettings: {
+            checkinFrequency: 'medium',
+            agentAggressiveness: 5,
+            requireApproval: true,
+            notifyLowConfidence: true
+        },
+        
+        // Content Goals
+        contentGoals: {
+            primary: 'SEO-Focused',
+            secondary: [],
+            customInstructions: ''
+        },
+        
+        // Brand Voice (moved from Settings)
+        showBrandVoice: false,
+        brandVoice: {
+            description: '',
+            tone: 'professional',
+            formality: 'semi-formal',
+            keywords: ''
+        },
+        
+        // Chat interface state
+        chatInput: '',
+        chatMessages: [],
+        sendingMessage: false,
+        
+        // PRP Workflow variables
+        showWorkflowModal: false,
+        selectedWorkflow: null,
+        activeWorkflows: [],
+        
+        // SERP Content Analysis variables
+        showAnalysisModal: false,
+        selectedKeyword: '',
+        keywordAnalysis: null,
+
+        // PRP Workflow Integration
+        prpWorkflowMode: false,
+        
+        // Initialization and other methods will be defined below
+        async init() {
+            console.log('Content Studio initializing with enhanced human-in-loop controls...');
+            this.initialized = true;
+            this.cleanupLocalStorage();
+            this.loadRecentContent();
+            await this.loadPersistedData();
+            
+            // Make contentStudio available globally for PRP workflow integration
+            window.contentStudio = () => this;
+            
+            // Load human-in-loop settings and brand voice
+            this.loadHumanInLoopSettings();
+            await this.loadBrandVoice();
+            
+            // Watch for settings changes and auto-save
+            this.$watch('humanInLoopSettings', () => {
+                this.saveHumanInLoopSettings();
+            }, { deep: true });
+            
+            // Watch for chatMessages with checkpoint actions to ensure immediate reactivity
+            this.$watch('chatMessages', (newMessages) => {
+                // Check if any message has checkpoint actions that need immediate rendering
+                const hasCheckpointMessages = newMessages.some(msg => 
+                    msg.type === 'assistant' && msg.checkpointActions
+                );
+                if (hasCheckpointMessages) {
+                    console.log('🎯 Checkpoint actions detected - ensuring DOM update');
+                    this.$nextTick(() => {
+                        const checkpointElements = this.$el.querySelectorAll('.checkpoint-actions');
+                        console.log('✅ Checkpoint elements after reactivity:', checkpointElements.length);
+                    });
+                }
+            }, { deep: true });
+            
+            this.$watch('contentGoals', () => {
+                this.saveHumanInLoopSettings();
+            }, { deep: true });
+            
+            console.log('✅ Content Studio initialization complete with settings:', {
+                humanInLoop: this.humanInLoopSettings,
+                contentGoals: this.contentGoals,
+                brandVoice: this.brandVoice.tone
+            });
+        },
+
+        // All other methods will be included here...
+        cleanupLocalStorage() {
+            // Clean up old localStorage keys that are no longer used
+            const keysToRemove = ['oldChatMessages', 'tempData', 'expiredSettings'];
+            keysToRemove.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key);
+                }
+            });
+        },
+        
+        async loadRecentContent() {
+            // Load recent content from API (not just localStorage)
+            try {
+                this.loadingRecentContent = true;
+                console.log('🔄 Loading recent content from API...');
+                
+                // Try to load from API first
+                const response = await fetch('/api/briefs/list?limit=10');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.recentContent = data.content || [];
+                    console.log('✅ Recent content loaded from API:', this.recentContent.length, 'items');
+                    
+                    // Update localStorage as cache
+                    localStorage.setItem('recentContent', JSON.stringify(this.recentContent));
+                } else {
+                    console.warn('⚠️ API failed, loading from localStorage fallback');
+                    // Fallback to localStorage if API fails
+                    const savedContent = localStorage.getItem('recentContent');
+                    if (savedContent) {
+                        this.recentContent = JSON.parse(savedContent);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading recent content:', error);
+                // Fallback to localStorage
+                try {
+                    const savedContent = localStorage.getItem('recentContent');
+                    if (savedContent) {
+                        this.recentContent = JSON.parse(savedContent);
+                    }
+                } catch (fallbackError) {
+                    console.error('Fallback also failed:', fallbackError);
+                    this.recentContent = [];
+                }
+            } finally {
+                this.loadingRecentContent = false;
+            }
+        },
+
+        async refreshRecentContent() {
+            // Refresh recent content from API
+            console.log('🔄 Refreshing recent content...');
+            await this.loadRecentContent();
+        },
+
+        refreshKnowledgeGraph() {
+            // Refresh Knowledge Graph if the function is available globally
+            try {
+                if (typeof window.refreshKnowledgeGraph === 'function') {
+                    console.log('🔄 Triggering Knowledge Graph refresh...');
+                    window.refreshKnowledgeGraph();
+                } else {
+                    console.log('⚠️ Knowledge Graph refresh function not available');
+                }
+            } catch (error) {
+                console.error('Error refreshing Knowledge Graph:', error);
+            }
+        },
+        
+        async loadPersistedData() {
+            // Load persisted chat messages and other data
+            try {
+                const savedMessages = localStorage.getItem('chatMessages');
+                if (savedMessages) {
+                    this.chatMessages = JSON.parse(savedMessages);
+                }
+                
+                const savedBriefs = localStorage.getItem('savedBriefs');
+                if (savedBriefs) {
+                    this.savedBriefs = JSON.parse(savedBriefs);
+                }
+                
+                // Restore current brief if available
+                await this.restoreCurrentBrief();
+                
+            } catch (error) {
+                console.error('Error loading persisted data:', error);
+            }
+        },
+
+        async restoreCurrentBrief() {
+            // Restore brief from localStorage first (immediate)
+            try {
+                const savedBrief = localStorage.getItem('currentBrief');
+                if (savedBrief) {
+                    const briefData = JSON.parse(savedBrief);
+                    
+                    this.uploadedBrief = briefData.uploaded || false;
+                    this.briefContent = briefData.content || '';
+                    this.briefSummary = briefData.summary || {};
+                    this.currentBriefId = briefData.briefId || null;
+                    
+                    console.log('✅ Brief restored from localStorage:', {
+                        uploaded: this.uploadedBrief,
+                        contentLength: this.briefContent.length,
+                        briefId: this.currentBriefId
+                    });
+                }
+            } catch (error) {
+                console.error('Error restoring brief from localStorage:', error);
+            }
+
+            // Try to load from database for latest version
+            if (this.currentBriefId) {
+                try {
+                    const response = await fetch(`/api/briefs/${this.currentBriefId}`);
+                    if (response.ok) {
+                        const brief = await response.json();
+                        
+                        // Update with database version
+                        this.briefContent = brief.content;
+                        this.briefSummary = {
+                            title: brief.title,
+                            summary: brief.summary,
+                            wordCount: brief.word_count,
+                            keywords: brief.keywords || []
+                        };
+                        this.uploadedBrief = true;
+                        
+                        console.log('✅ Brief updated from database:', brief.title);
+                    }
+                } catch (error) {
+                    console.warn('Could not load brief from database, using localStorage version:', error);
+                }
+            }
+        },
+        
+        loadHumanInLoopSettings() {
+            // Load human-in-loop settings from localStorage
+            try {
+                const savedSettings = localStorage.getItem('humanInLoopSettings');
+                if (savedSettings) {
+                    this.humanInLoopSettings = { ...this.humanInLoopSettings, ...JSON.parse(savedSettings) };
+                }
+                
+                const savedGoals = localStorage.getItem('contentGoals');
+                if (savedGoals) {
+                    this.contentGoals = { ...this.contentGoals, ...JSON.parse(savedGoals) };
+                }
+            } catch (error) {
+                console.error('Error loading human-in-loop settings:', error);
+            }
+        },
+        
+        async loadBrandVoice() {
+            // Load brand voice settings
+            try {
+                const savedBrandVoice = localStorage.getItem('brandVoice');
+                if (savedBrandVoice) {
+                    this.brandVoice = { ...this.brandVoice, ...JSON.parse(savedBrandVoice) };
+                }
+            } catch (error) {
+                console.error('Error loading brand voice:', error);
+            }
+        },
+        
+        saveHumanInLoopSettings() {
+            // Save human-in-loop settings to localStorage
+            try {
+                localStorage.setItem('humanInLoopSettings', JSON.stringify(this.humanInLoopSettings));
+                localStorage.setItem('contentGoals', JSON.stringify(this.contentGoals));
+            } catch (error) {
+                console.error('Error saving human-in-loop settings:', error);
+            }
+        },
+        
+        enablePRPWorkflow() {
+            this.prpWorkflowMode = !this.prpWorkflowMode; // Toggle the mode
+            
+            if (this.prpWorkflowMode) {
+                // Ensure requireApproval is set when PRP workflow is enabled
+                this.humanInLoopSettings.requireApproval = true;
+                
+                this.showBrandVoice = true; // Show brand voice for PRP setup
+                
+                console.log('🔄 PRP Workflow enabled:', {
+                    prpWorkflowMode: this.prpWorkflowMode,
+                    requireApproval: this.humanInLoopSettings.requireApproval,
+                    humanInLoopSettings: this.humanInLoopSettings
+                });
+                
+                // Add system message to explain PRP mode
+                this.chatMessages.push({
+                    id: Date.now(),
+                    type: 'system',
+                    content: '🎯 **PRP Workflow Mode Enabled**\n\nI\'ll guide you through a structured content creation process:\n1. **Planning** - Strategy and approach\n2. **Requirements** - Specific content needs\n3. **Process** - Step-by-step execution\n\nThis ensures higher quality content with human checkpoints. Your next message will trigger the PRP workflow!',
+                    timestamp: new Date().toISOString()
+                });
+                
+                showToast('PRP Workflow mode enabled - structured content creation activated', 'success');
+            } else {
+                // Don't disable requireApproval when disabling PRP, let user control it independently
+                
+                console.log('⚡ PRP Workflow disabled:', {
+                    prpWorkflowMode: this.prpWorkflowMode,
+                    requireApproval: this.humanInLoopSettings.requireApproval
+                });
+                
+                // Add system message to explain regular mode
+                this.chatMessages.push({
+                    id: Date.now(),
+                    type: 'system',
+                    content: '💬 **Regular Chat Mode Enabled**\n\nI\'ll respond directly to your messages using the enhanced ContentGenerationAgent with knowledge graph integration. No structured workflow checkpoints.',
+                    timestamp: new Date().toISOString()
+                });
+                
+                showToast('PRP Workflow mode disabled - direct chat mode activated', 'info');
+            }
+            
+            this.saveChatMessages();
+            this.scrollToBottom();
+        },
+        
+        saveChatMessages() {
+            // Save chat messages to localStorage
+            try {
+                localStorage.setItem('chatMessages', JSON.stringify(this.chatMessages));
+            } catch (error) {
+                console.error('Error saving chat messages:', error);
+            }
+        },
+        
+        scrollToBottom() {
+            // Scroll chat messages container to bottom
+            this.$nextTick(() => {
+                const container = this.$refs.chatMessages;
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            });
+        },
+        
+        async saveManualBrief() {
+            if (!this.manualBrief.trim()) {
+                showToast('Please enter some content for the manual brief', 'warning');
+                return;
+            }
+            
+            try {
+                // Create brief data from manual input
+                const briefData = {
+                    title: 'Manual Brief - ' + new Date().toLocaleDateString(),
+                    content: this.manualBrief,
+                    summary: this.manualBrief.substring(0, 200) + (this.manualBrief.length > 200 ? '...' : ''),
+                    word_count: this.manualBrief.split(/\s+/).length,
+                    keywords: [],
+                    source_type: 'manual'
+                };
+                
+                // Store the brief to database for persistence
+                console.log('💾 Saving manual brief to database...');
+                try {
+                    const response = await fetch('/api/briefs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(briefData)
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        this.currentBriefId = result.id;
+                        console.log('✅ Brief saved to database with ID:', result.id);
+                    } else {
+                        console.warn('⚠️ Database save failed, using localStorage fallback');
+                    }
+                } catch (dbError) {
+                    console.warn('⚠️ Database save failed, using localStorage fallback:', dbError);
+                }
+                
+                // Store the manual brief content BEFORE clearing the input
+                const briefContentToSave = this.manualBrief;
+                
+                // Update the current brief
+                this.uploadedBrief = true;
+                this.briefContent = briefContentToSave; // Use the stored content
+                this.briefSummary = {
+                    title: briefData.title,
+                    summary: briefData.summary,
+                    wordCount: briefData.word_count,
+                    keywords: briefData.keywords
+                };
+                
+                // Also save to localStorage for immediate access
+                localStorage.setItem('currentBrief', JSON.stringify({
+                    content: this.briefContent,
+                    summary: this.briefSummary,
+                    briefId: this.currentBriefId,
+                    uploaded: true
+                }));
+                
+                // Debug logging
+                console.log('✅ Manual brief saved:', {
+                    briefContentLength: this.briefContent.length,
+                    uploadedBrief: this.uploadedBrief,
+                    briefSummary: this.briefSummary,
+                    briefId: this.currentBriefId
+                });
+                
+                // Hide the manual brief input
+                this.showManualBrief = false;
+                
+                // Clear the input AFTER saving the content
+                this.manualBrief = '';
+                
+                showToast('Manual brief saved successfully and will persist across sessions!', 'success');
+                
+            } catch (error) {
+                console.error('Error saving manual brief:', error);
+                showToast('Error saving manual brief', 'error');
+            }
+        },
+        
+        formatPhase(phase) {
+            if (!phase) return 'Unknown';
+            return phase.charAt(0).toUpperCase() + phase.slice(1).replace(/_/g, ' ');
+        },
+        
+        getPhaseDescription(phase) {
+            const descriptions = {
+                'planning': 'Analyzing requirements and creating strategy',
+                'requirements': 'Gathering detailed specifications',
+                'process': 'Executing content creation',
+                'review': 'Quality assurance and refinement',
+                'complete': 'Workflow completed successfully'
+            };
+            return descriptions[phase] || 'Processing workflow step';
+        },
+        
+        formatTimestamp(timestamp) {
+            if (!timestamp) return '';
+            try {
+                const date = new Date(timestamp);
+                const now = new Date();
+                const diff = now - date;
+                
+                if (diff < 60000) return 'Just now';
+                if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+                if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+                return date.toLocaleDateString();
+            } catch (e) {
+                return '';
+            }
+        },
+        
+        renderMarkdown(content) {
+            if (!content) return '';
+            // Simple markdown rendering - replace with proper markdown parser if needed
+            return content
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
+        },
+        
+        insertQuickPrompt(prompt) {
+            this.chatInput = prompt;
+            // Focus on the textarea if available
+            this.$nextTick(() => {
+                const textarea = this.$el.querySelector('textarea');
+                if (textarea) {
+                    textarea.focus();
+                }
+            });
+        },
+        
+        // Safe property access helpers
+        getMessageProperty(message, path, defaultValue = null) {
+            try {
+                return path.split('.').reduce((obj, prop) => obj && obj[prop], message) || defaultValue;
+            } catch (e) {
+                return defaultValue;
+            }
+        },
+        
+        hasCheckpointActions(message) {
+            const result = message && message.checkpointActions && typeof message.checkpointActions === 'object';
+            if (message && message.type === 'assistant') {
+                console.log('🔍 hasCheckpointActions check for message:', {
+                    messageId: message.id,
+                    messageType: message.type,
+                    hasMessage: !!message,
+                    hasCheckpointActions: !!message.checkpointActions,
+                    checkpointActionsType: typeof message.checkpointActions,
+                    checkpointActionsData: message.checkpointActions,
+                    finalResult: result
+                });
+            }
+            return result;
+        },
+        
+        hasPRPWorkflow(message) {
+            return message && message.prpWorkflow && typeof message.prpWorkflow === 'object';
+        },
+        
+        // Brand Voice Management
+        async saveBrandVoice() {
+            try {
+                console.log('Saving brand voice settings:', this.brandVoice);
+                
+                // Validate brand voice data
+                if (!this.brandVoice.description.trim() && !this.brandVoice.keywords.trim()) {
+                    showToast('Please provide either a description or keywords for your brand voice', 'warning');
+                    return;
+                }
+                
+                // TODO: Send to backend API when available
+                // For now, just save to localStorage
+                localStorage.setItem('brandVoice', JSON.stringify(this.brandVoice));
+                
+                showToast('Brand voice settings saved successfully!', 'success');
+                console.log('✅ Brand voice saved');
+                
+            } catch (error) {
+                console.error('Error saving brand voice:', error);
+                showToast('Error saving brand voice settings', 'error');
+            }
+        },
+        
+        // Chat Message Management
+        async sendChatMessage() {
+            if (!this.chatInput.trim() || this.sendingMessage) {
+                return;
+            }
+            
+            const userMessage = this.chatInput.trim();
+            this.chatInput = '';
+            this.sendingMessage = true;
+            
+            try {
+                // Add user message to chat
+                const userMsg = {
+                    id: Date.now(),
+                    type: 'user',
+                    content: userMessage,
+                    timestamp: new Date().toISOString()
+                };
+                this.chatMessages.push(userMsg);
+                
+                // Create assistant message placeholder
+                const assistantMsg = {
+                    id: Date.now() + 1,
+                    type: 'assistant',
+                    content: '',
+                    timestamp: new Date().toISOString(),
+                    isTyping: true
+                };
+                this.chatMessages.push(assistantMsg);
+                
+                this.scrollToBottom();
+                this.saveChatMessages();
+                
+                // Prepare request payload with context
+                const requestPayload = {
+                    message: userMessage,
+                    context: "content_studio",
+                    brief_content: this.briefContent || null,
+                    brief_summary: this.uploadedBrief ? this.briefSummary : null,
+                    human_in_loop: this.humanInLoopSettings,
+                    content_goals: this.contentGoals,
+                    brand_voice: this.brandVoice,
+                    prp_workflow: this.prpWorkflowMode
+                };
+                
+                console.log('📤 Sending chat request to backend:', {
+                    message: requestPayload.message.substring(0, 50) + '...',
+                    prp_workflow: requestPayload.prp_workflow,
+                    brief_content_length: requestPayload.brief_content?.length || 0,
+                    brief_summary: requestPayload.brief_summary,
+                    human_in_loop: requestPayload.human_in_loop
+                });
+                
+                // Send to backend API
+                const response = await fetch('/api/briefs/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestPayload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('📥 Received chat response:', data);
+                
+                // Debug: Log the full response structure
+                console.log('📊 Response structure:', {
+                    success: data.success,
+                    response_length: data.response?.length || 0,
+                    response_preview: data.response?.substring(0, 100) + '...',
+                    error: data.error,
+                    prpWorkflow: data.prpWorkflow,
+                    checkpointActions: data.checkpointActions,
+                    knowledge_graph_used: data.knowledge_graph_used
+                });
+                
+                // Update assistant message with response
+                assistantMsg.isTyping = false;
+                
+                if (data.success) {
+                    // CRITICAL FIX: Instead of mutating the existing message object,
+                    // create a completely new message object to ensure Alpine.js detects the change
+                    const updatedAssistantMsg = {
+                        ...assistantMsg,
+                        content: data.response || 'Content generated successfully',
+                        checkpointActions: data.checkpointActions || null,
+                        prpWorkflow: data.prpWorkflow || null,
+                        metadata: {
+                            ...assistantMsg.metadata,
+                            knowledge_graph_used: data.knowledge_graph_used,
+                            generation_time: data.generation_time,
+                            recommendations: data.recommendations
+                        }
+                    };
+                    
+                    console.log('✅ Created updated assistant message:', {
+                        content_length: updatedAssistantMsg.content.length,
+                        hasCheckpointActions: !!updatedAssistantMsg.checkpointActions,
+                        hasPRPWorkflow: !!updatedAssistantMsg.prpWorkflow,
+                        checkpointData: updatedAssistantMsg.checkpointActions
+                    });
+                    
+                    // Find and replace the assistant message in the array
+                    const messageIndex = this.chatMessages.findIndex(msg => msg.id === assistantMsg.id);
+                    if (messageIndex !== -1) {
+                        console.log('🔄 Replacing message at index:', messageIndex);
+                        
+                        // Create a new array with the updated message
+                        const newMessages = [...this.chatMessages];
+                        newMessages[messageIndex] = updatedAssistantMsg;
+                        
+                        // Replace the entire array to trigger Alpine.js reactivity
+                        this.chatMessages = newMessages;
+                        
+                        console.log('🎯 Message replacement complete:', {
+                            totalMessages: this.chatMessages.length,
+                            updatedMessage: {
+                                id: updatedAssistantMsg.id,
+                                hasCheckpointActions: !!updatedAssistantMsg.checkpointActions,
+                                checkpointActionsData: updatedAssistantMsg.checkpointActions
+                            }
+                        });
+                    }
+                    
+                    // Force additional reactivity check in nextTick
+                    this.$nextTick(() => {
+                        console.log('🔄 NextTick: Verifying checkpoint actions...');
+                        const messagesWithCheckpoints = this.chatMessages.filter(msg => 
+                            this.hasCheckpointActions(msg)
+                        );
+                        console.log('📊 Messages with checkpoint actions:', messagesWithCheckpoints.length);
+                        
+                        if (messagesWithCheckpoints.length > 0) {
+                            console.log('✅ Checkpoint actions detected in array');
+                            const checkpointElements = this.$el.querySelectorAll('.checkpoint-actions');
+                            console.log('🔍 DOM checkpoint elements found:', checkpointElements.length);
+                        }
+                    });
+                    
+                    // Check for workflow completion flag
+                    if (data.workflowCompleted) {
+                        console.log('🎯 WORKFLOW COMPLETED - Refreshing Recent Content and Knowledge Graph');
+                        showToast('Content successfully saved to Knowledge Base!', 'success');
+                        
+                        // Refresh Recent Content to show newly stored content
+                        await this.refreshRecentContent();
+                        
+                        // Refresh Knowledge Graph to show new nodes and relationships
+                        this.refreshKnowledgeGraph();
+                    } else {
+                        // Show regular success message
+                        showToast('Content generated successfully!', 'success');
+                    }
+                } else {
+                    // Handle API error response
+                    assistantMsg.content = `I apologize, but I encountered an issue: ${data.error || 'Unknown error occurred'}\n\nPlease try again or contact support if the problem persists.`;
+                    assistantMsg.type = 'error';
+                    showToast(`Generation failed: ${data.error || 'Unknown error'}`, 'error');
+                    console.log('❌ Error response:', data);
+                }
+                
+            } catch (error) {
+                console.error('Error sending chat message:', error);
+                
+                // Update assistant message with error
+                if (this.chatMessages.length > 0 && this.chatMessages[this.chatMessages.length - 1].isTyping) {
+                    const failedMsg = this.chatMessages[this.chatMessages.length - 1];
+                    failedMsg.isTyping = false;
+                    failedMsg.content = `I'm sorry, but I'm currently unable to connect to the content generation service. Please check your connection and try again.\n\n**Error details:** ${error.message}`;
+                    failedMsg.type = 'error';
+                }
+                
+                showToast('Failed to send message - check connection', 'error');
+                
+            } finally {
+                this.sendingMessage = false;
+                this.saveChatMessages();
+                this.scrollToBottom();
+            }
+        },
+        
+        // Add message to chat with proper Alpine.js reactivity
+        addMessage(messageData) {
+            if (!messageData) return;
+            
+            // Ensure the message has required properties
+            const message = {
+                id: Date.now() + Math.random(), // Ensure unique ID
+                timestamp: new Date().toISOString(),
+                ...messageData
+            };
+            
+            console.log('📥 Adding message to chat:', {
+                type: message.type,
+                content_length: message.content?.length || 0,
+                hasCheckpointActions: !!message.checkpointActions,
+                hasPRPWorkflow: !!message.prpWorkflow
+            });
+            
+            // Add to chatMessages array
+            this.chatMessages.push(message);
+            
+            // Force Alpine.js reactivity by replacing the entire array
+            const currentMessages = [...this.chatMessages];
+            this.chatMessages = currentMessages;
+            
+            // Save to localStorage and scroll to bottom
+            this.saveChatMessages();
+            this.scrollToBottom();
+            
+            // Additional reactivity check for checkpoint actions
+            if (message.checkpointActions) {
+                console.log('🔘 Message has checkpoint actions - ensuring DOM update');
+                this.$nextTick(() => {
+                    const checkpointElements = this.$el.querySelectorAll('.checkpoint-actions');
+                    console.log('✅ Checkpoint elements found after addMessage:', checkpointElements.length);
+                });
+            }
+        },
+        
+        // Additional helper functions for chat functionality
+        clearChatHistory() {
+            if (confirm('Are you sure you want to clear all chat messages?')) {
+                this.chatMessages = [];
+                this.saveChatMessages();
+                showToast('Chat history cleared', 'info');
+            }
+        },
+        
+        copyToClipboard(content) {
+            if (!content) return;
+            
+            navigator.clipboard.writeText(content).then(() => {
+                showToast('Copied to clipboard!', 'success');
+            }).catch(err => {
+                console.error('Failed to copy to clipboard:', err);
+                showToast('Failed to copy to clipboard', 'error');
+            });
+        },
+        
+        handleEnterKey(event) {
+            if (event.shiftKey) {
+                // Allow new line with Shift+Enter
+                return;
+            } else {
+                // Send message with Enter
+                event.preventDefault();
+                this.sendChatMessage();
+            }
+        },
+        
+        handleChatPaste(event) {
+            // Handle paste events in chat input
+            console.log('Paste event in chat input');
+        },
+        
+        handleInputResize(event) {
+            // Auto-resize textarea based on content
+            const textarea = event.target;
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+        },
+        
+        attachFile() {
+            // TODO: Implement file attachment functionality
+            showToast('File attachment feature coming soon', 'info');
+        },
+        
+        regenerateMessage(messageIndex) {
+            const message = this.chatMessages[messageIndex];
+            if (!message || message.type !== 'assistant') {
+                return;
+            }
+            
+            // Find the previous user message
+            let userMessage = null;
+            for (let i = messageIndex - 1; i >= 0; i--) {
+                if (this.chatMessages[i].type === 'user') {
+                    userMessage = this.chatMessages[i];
+                    break;
+                }
+            }
+            
+            if (!userMessage) {
+                showToast('Cannot find original message to regenerate', 'warning');
+                return;
+            }
+            
+            // Set the original user message back as input and trigger regeneration
+            this.chatInput = userMessage.content;
+            
+            // Remove the failed/old assistant message
+            this.chatMessages.splice(messageIndex, 1);
+            
+            // Trigger new generation
+            this.sendChatMessage();
+        },
+        
+        retryFailedMessage(messageIndex) {
+            // Retry specifically for failed messages
+            this.regenerateMessage(messageIndex);
+        },
+        
+        // PRP Workflow functions (placeholders)
+        async respondToCheckpoint(workflowId, checkpointId, response) {
+            console.log('Checkpoint response:', { workflowId, checkpointId, response });
+            
+            try {
+                // Show loading state
+                this.isGenerating = true;
+                
+                // Add system message indicating checkpoint processing
+                this.addMessage({
+                    type: 'system',
+                    content: `Processing checkpoint ${response}...`,
+                    timestamp: new Date()
+                });
+                
+                const requestPayload = {
+                    workflow_id: workflowId,
+                    checkpoint_id: checkpointId,
+                    response: response,
+                    feedback: response === 'rejected' ? 'User rejected this checkpoint' : ''
+                };
+                
+                const response_obj = await fetch('/api/briefs/checkpoint-response', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestPayload)
+                });
+                
+                if (!response_obj.ok) {
+                    throw new Error(`HTTP ${response_obj.status}: ${response_obj.statusText}`);
+                }
+                
+                const result = await response_obj.json();
+                
+                if (result.success) {
+                    // Prepare the message content
+                    let messageContent = result.response || result.message;
+                    
+                    // If generated content is available, include it
+                    if (result.generatedContent && result.generatedContent.trim()) {
+                        console.log('🎯 Generated content found in response:', result.generatedContent.length, 'characters');
+                        
+                        // Add separator and generated content
+                        messageContent += '\n\n---\n\n**Generated Content:**\n\n' + result.generatedContent;
+                        
+                        // Log for debugging
+                        console.log('📄 Full message content length:', messageContent.length);
+                    }
+                    
+                    // Add the response message
+                    this.addMessage({
+                        type: 'assistant',
+                        content: messageContent,
+                        timestamp: new Date(),
+                        prpWorkflow: result.prpWorkflow,
+                        checkpointActions: result.checkpointActions,
+                        generatedContent: result.generatedContent, // Include for potential export/download
+                        metadata: {
+                            knowledge_graph_used: result.knowledge_graph_used,
+                            recommendations: result.recommendations
+                        }
+                    });
+                    
+                    // Check for workflow completion in checkpoint response
+                    if (result.workflowCompleted) {
+                        console.log('🎯 CHECKPOINT WORKFLOW COMPLETED - Refreshing Recent Content and Knowledge Graph');
+                        showToast('Workflow completed! Content saved to Knowledge Base.', 'success');
+                        
+                        // Refresh Recent Content to show newly stored content
+                        await this.refreshRecentContent();
+                        
+                        // Refresh Knowledge Graph to show new nodes and relationships
+                        this.refreshKnowledgeGraph();
+                    } else {
+                        showToast(`Checkpoint ${response} successfully`, 'success');
+                    }
+                } else {
+                    throw new Error(result.message || 'Checkpoint response failed');
+                }
+                
+            } catch (error) {
+                console.error('Checkpoint response error:', error);
+                this.addMessage({
+                    type: 'error',
+                    content: `Error processing checkpoint ${response}: ${error.message}`,
+                    timestamp: new Date()
+                });
+                showToast(`Failed to process checkpoint: ${error.message}`, 'error');
+            } finally {
+                this.isGenerating = false;
+            }
+        },
+        
+        async showModificationPrompt(workflowId, checkpointId) {
+            console.log('Show modification prompt:', { workflowId, checkpointId });
+            
+            // Simple prompt for now - could be enhanced with a modal
+            const feedback = prompt('What modifications would you like to make to this checkpoint?');
+            
+            if (feedback && feedback.trim()) {
+                try {
+                    // Show loading state
+                    this.isGenerating = true;
+                    
+                    // Add system message indicating modification processing
+                    this.addMessage({
+                        type: 'system',
+                        content: 'Processing modification request...',
+                        timestamp: new Date()
+                    });
+                    
+                    const requestPayload = {
+                        workflow_id: workflowId,
+                        checkpoint_id: checkpointId,
+                        response: 'modified',
+                        feedback: feedback.trim()
+                    };
+                    
+                    const response = await fetch('/api/briefs/checkpoint-response', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(requestPayload)
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // Add the response message
+                        this.addMessage({
+                            type: 'assistant',
+                            content: result.response || result.message,
+                            timestamp: new Date(),
+                            prpWorkflow: result.prpWorkflow,
+                            metadata: {
+                                user_feedback: feedback,
+                                modification_requested: true
+                            }
+                        });
+                        
+                        showToast('Modification request processed', 'success');
+                    } else {
+                        throw new Error(result.message || 'Modification request failed');
+                    }
+                    
+                } catch (error) {
+                    console.error('Modification request error:', error);
+                    this.addMessage({
+                        type: 'error',
+                        content: `Error processing modification request: ${error.message}`,
+                        timestamp: new Date()
+                    });
+                    showToast(`Failed to process modification: ${error.message}`, 'error');
+                } finally {
+                    this.isGenerating = false;
+                }
+            }
+        },
+        
+        // Additional utility methods referenced in template
+        formatNumber(num) {
+            if (!num) return '0';
+            return num.toLocaleString();
+        },
+        
+        formatDate(dateString) {
+            if (!dateString) return '';
+            try {
+                return new Date(dateString).toLocaleDateString();
+            } catch (e) {
+                return '';
+            }
+        },
+        
+        analyzeContent(contentId) {
+            console.log('Analyzing content:', contentId);
+            showToast('Content analysis feature coming soon', 'info');
+        },
+        
+        saveContent() {
+            if (!this.analysisResults || !this.analysisResults.generated_content) {
+                showToast('No content to save', 'warning');
+                return;
+            }
+            
+            try {
+                // Save to recent content
+                const contentItem = {
+                    id: Date.now(),
+                    title: this.analysisResults.generated_title || 'Untitled Content',
+                    content: this.analysisResults.generated_content,
+                    content_type: 'generated',
+                    word_count: this.analysisResults.word_count || 0,
+                    seo_score: this.analysisResults.seo_score || 0,
+                    created_at: new Date().toISOString()
+                };
+                
+                this.recentContent.unshift(contentItem);
+                // Keep only last 10 items
+                this.recentContent = this.recentContent.slice(0, 10);
+                
+                // Save to localStorage
+                localStorage.setItem('recentContent', JSON.stringify(this.recentContent));
+                
+                showToast('Content saved successfully!', 'success');
+                
+            } catch (error) {
+                console.error('Error saving content:', error);
+                showToast('Error saving content', 'error');
+            }
+        },
+        
+        downloadContent(content = null, filename = null) {
+            // Handle both old analysisResults usage and new message content usage
+            let contentToDownload, filenameToUse;
+            
+            if (content && filename) {
+                // New usage: downloadContent(message.content, 'filename.md')
+                contentToDownload = content;
+                filenameToUse = filename;
+            } else {
+                // Old usage: downloadContent() for analysisResults
+                if (!this.analysisResults || !this.analysisResults.generated_content) {
+                    showToast('No content to download', 'warning');
+                    return;
+                }
+                contentToDownload = this.analysisResults.generated_content;
+                const title = this.analysisResults.generated_title || 'Generated Content';
+                filenameToUse = title.toLowerCase().replace(/[^a-z0-9]/g, '-') + '.txt';
+            }
+            
+            try {
+                const blob = new Blob([contentToDownload], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filenameToUse;
+                link.click();
+                
+                URL.revokeObjectURL(url);
+                showToast('Content downloaded!', 'success');
+                
+            } catch (error) {
+                console.error('Error downloading content:', error);
+                showToast('Error downloading content', 'error');
+            }
+        }
+    };
+}
+
+// Make contentStudio globally available
+window.contentStudio = contentStudio;
+</script>
+{% endblock %}
+
+{% block content %}
+
+<!-- Temporary Authentication Setup for Testing -->
+<script>
+    // Real user authentication token for admin@twistworld.co.uk (updated)
+    const realToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJiOTQ1YmFlLWY2NGQtNDg1OS1iMGRkLTg2NDE1ZDM1M2EyZCIsImVtYWlsIjoiYWRtaW5AdHdpc3R3b3JsZC5jby51ayIsImRpc3BsYXlfbmFtZSI6IkFkbWluIFRlYW0iLCJvcmdhbml6YXRpb25faWQiOiJ0d2lzdHdvcmxkLW9yZyIsInJvbGUiOiJvd25lciIsImF2YXRhcl91cmwiOm51bGwsImV4cCI6MTc1NjU1NTI5M30.j0BZGMildyXHBbrdReh6qgLMWLokxCEmZZpCbGuhwmQ';
+    
+    // Set token in localStorage and cookie for workspace manager
+    localStorage.setItem('access_token', realToken);
+    document.cookie = `access_token=${realToken}; path=/; secure; samesite=strict`;
+    
+    console.log('🔑 Real user authentication token set for admin@twistworld.co.uk');
+</script>
+
+<div x-data="contentStudio()" x-init="init()">
+    {% include "components/human_in_loop_controls.html" %}
+
+    {% include "components/prp_workflow_status.html" %}
+
+    {% include "components/serp_content_recommendations.html" %}
+
+    {% include "components/brief_upload.html" %}
+
+    <!-- Brand Voice Configuration (Moved from Settings) -->
+    <div class="card p-6 mb-6" x-show="showBrandVoice" x-transition>
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Brand Voice & Context</h3>
+            <button @click="showBrandVoice = false" class="text-sm text-gray-500 hover:text-red-500">
+                <i class="fas fa-times mr-1"></i>Hide
+            </button>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-medium mb-2">Brand Voice Description</label>
+                <textarea x-model="brandVoice.description" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none h-24" placeholder="Describe your brand's tone, style, and personality..."></textarea>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Tone</label>
+                    <select x-model="brandVoice.tone" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none">
+                        <option value="professional">Professional</option>
+                        <option value="casual">Casual</option>
+                        <option value="friendly">Friendly</option>
+                        <option value="authoritative">Authoritative</option>
+                        <option value="conversational">Conversational</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">Formality</label>
+                    <select x-model="brandVoice.formality" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none">
+                        <option value="formal">Formal</option>
+                        <option value="semi-formal">Semi-formal</option>
+                        <option value="informal">Informal</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <label class="block text-sm font-medium mb-2">Keywords to Emphasize</label>
+            <input type="text" x-model="brandVoice.keywords" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="innovation, quality, efficiency, customer-focused">
+            <p class="text-xs text-gray-400 mt-1">Comma-separated keywords that represent your brand</p>
+        </div>
+        
+        <div class="flex justify-end mt-4">
+            <button @click="saveBrandVoice()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                <i class="fas fa-save mr-2"></i>Save Brand Voice
+            </button>
+        </div>
+    </div>
+
+    <!-- Content Generation Chat (Primary Interface) -->
+    <div class="card p-6 mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Content Generation</h3>
+            <div class="flex items-center space-x-3">
+                <button @click="enablePRPWorkflow()" 
+                        :class="prpWorkflowMode ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700'"
+                        class="text-sm px-3 py-1 text-white rounded" 
+                        :title="prpWorkflowMode ? 'PRP Workflow active - structured content creation' : 'Enable PRP Workflow for structured content creation'">
+                    <i class="fas" :class="prpWorkflowMode ? 'fa-check-circle' : 'fa-project-diagram'" class="mr-1"></i>
+                    <span x-text="prpWorkflowMode ? 'PRP Active' : 'PRP Workflow'"></span>
+                </button>
+                <button @click="showBrandVoice = !showBrandVoice" class="text-sm px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700" title="Configure brand voice">
+                    <i class="fas fa-microphone-alt mr-1"></i>Brand Voice
+                </button>
+                <div x-show="uploadedBrief" class="text-sm text-green-600">
+                    <i class="fas fa-check-circle mr-1"></i>Using brief context
+                </div>
+                <button x-show="chatMessages.length > 0" @click="clearChatHistory()" class="text-sm text-gray-500 hover:text-red-500" title="Clear chat history">
+                    <i class="fas fa-trash mr-1"></i>Clear Chat
+                </button>
+            </div>
+        </div>
+        
+        <!-- Chat Messages Area -->
+        <div x-ref="chatMessages" class="chat-messages-container mb-4 h-96 overflow-y-auto border rounded-lg p-4" style="background-color: var(--bg-primary); border-color: var(--border-color);">
+            <div x-show="chatMessages.length === 0" class="flex items-center justify-center h-full text-center">
+                <div>
+                    <i class="fas fa-magic text-4xl mb-4" style="color: var(--text-muted);"></i>
+                    <p style="color: var(--text-secondary);">Ready to generate content based on your brief</p>
+                    <p class="text-sm mt-2" style="color: var(--text-muted);">
+                        <span x-show="uploadedBrief">Ask me to create blog posts, articles, social content, or anything else</span>
+                        <span x-show="!uploadedBrief">Upload a brief above to get started, or ask me to analyze content</span>
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Messages -->
+            <div class="space-y-4">
+                <template x-for="(message, index) in chatMessages" :key="message.id">
+                    <div class="message-bubble" :class="{
+                        'user-message': message.type === 'user',
+                        'assistant-message': message.type === 'assistant',
+                        'system-message': message.type === 'system',
+                        'error-message': message.type === 'error'
+                    }">
+                        <!-- Message Header -->
+                        <div class="message-header flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-2">
+                                <div class="avatar" :class="{
+                                    'user-avatar': message.type === 'user',
+                                    'assistant-avatar': message.type === 'assistant',
+                                    'system-avatar': message.type === 'system',
+                                    'error-avatar': message.type === 'error'
+                                }">
+                                    <i :class="{
+                                        'fas fa-user': message.type === 'user',
+                                        'fas fa-robot': message.type === 'assistant',
+                                        'fas fa-cog': message.type === 'system',
+                                        'fas fa-exclamation-triangle': message.type === 'error'
+                                    }"></i>
+                                </div>
+                                <span class="text-sm font-medium" x-text="
+                                    message.type === 'user' ? 'You' : 
+                                    message.type === 'system' ? 'System' : 
+                                    message.type === 'error' ? 'Error' :
+                                    'Content Assistant'
+                                "></span>
+                                <span class="text-xs" style="color: var(--text-muted);" x-text="formatTimestamp(message.timestamp)"></span>
+                            </div>
+                            <div class="message-actions flex items-center space-x-1" x-show="message.type !== 'system'">
+                                <button 
+                                    @click="copyToClipboard(message.content)" 
+                                    class="action-btn"
+                                    title="Copy message"
+                                    x-show="message.type !== 'error'"
+                                >
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <button 
+                                    x-show="message.type === 'assistant'"
+                                    @click="regenerateMessage(index)"
+                                    class="action-btn"
+                                    title="Regenerate response"
+                                >
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                                <button 
+                                    x-show="message.type === 'error'"
+                                    @click="retryFailedMessage(index)"
+                                    class="action-btn text-orange-500 hover:text-orange-700"
+                                    title="Retry failed request"
+                                >
+                                    <i class="fas fa-retry"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Message Content -->
+                        <div class="message-content">
+                            <div 
+                                x-show="message.isTyping && message.type === 'assistant'" 
+                                class="streaming-indicator"
+                            >
+                                <span class="typing-dots">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </span>
+                            </div>
+                            <div 
+                                class="message-text" 
+                                x-html="renderMarkdown(message.content)"
+                                x-show="!message.isTyping || message.type === 'user'"
+                                x-init="if (message.content && message.content.length > 100) console.log('📄 Long content message:', message.id, 'Length:', message.content.length, 'Preview:', message.content.substring(0, 100) + '...')"
+                                style="max-height: none; overflow: visible; word-wrap: break-word;"
+                            ></div>
+                            
+                            <!-- Long Content Helper -->
+                            <div x-show="message.content && message.content.length > 2000 && message.type === 'assistant'" 
+                                 class="mt-2 p-2 bg-gray-800 rounded text-sm">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-300">
+                                        📄 Long content detected (<span x-text="message.content ? message.content.length : 0"></span> characters)
+                                    </span>
+                                    <div class="flex gap-2">
+                                        <button @click="copyToClipboard(message.content)" 
+                                                class="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+                                            📋 Copy All
+                                        </button>
+                                        <button @click="downloadContent(message.content, 'generated-content.md')" 
+                                                class="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">
+                                            💾 Download
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- PRP Workflow Checkpoint Actions -->
+                            <div x-show="hasCheckpointActions(message) && message.type === 'assistant'" 
+                                 x-transition
+                                 class="checkpoint-actions mt-4 p-3 bg-gray-800 rounded-lg border border-blue-500"
+                                 x-cloak
+                                 x-init="console.log('🔘 Checkpoint actions div initialized for message:', message.id, 'hasActions:', hasCheckpointActions(message))">
+                                <h5 class="text-sm font-semibold text-blue-400 mb-2">Checkpoint Response Required</h5>
+                                <div class="flex flex-wrap gap-2 mb-3">
+                                    <button 
+                                        @click="respondToCheckpoint(getMessageProperty(message, 'checkpointActions.workflowId'), getMessageProperty(message, 'checkpointActions.checkpointId'), 'approved')"
+                                        class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                                        title="Approve and continue"
+                                    >
+                                        ✅ Approve
+                                    </button>
+                                    <button 
+                                        @click="respondToCheckpoint(getMessageProperty(message, 'checkpointActions.workflowId'), getMessageProperty(message, 'checkpointActions.checkpointId'), 'rejected')"
+                                        class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                                        title="Reject and request revision"
+                                    >
+                                        ❌ Reject
+                                    </button>
+                                    <button 
+                                        @click="showModificationPrompt(getMessageProperty(message, 'checkpointActions.workflowId'), getMessageProperty(message, 'checkpointActions.checkpointId'))"
+                                        class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                                        title="Provide specific modifications"
+                                    >
+                                        ✏️ Modify
+                                    </button>
+                                </div>
+                                <div x-show="getMessageProperty(message, 'checkpointActions.phase')" class="text-xs text-gray-400">
+                                    Current Phase: <span x-text="formatPhase(getMessageProperty(message, 'checkpointActions.phase'))"></span>
+                                </div>
+                            </div>
+                            
+                            <!-- PRP Workflow Progress -->
+                            <div x-show="hasPRPWorkflow(message) && message.type === 'assistant'" class="workflow-progress mt-3 p-2 bg-gray-800 rounded border border-indigo-500">
+                                <div class="flex items-center justify-between text-sm">
+                                    <span class="text-indigo-400">PRP Workflow</span>
+                                    <span class="text-gray-300" x-text="(getMessageProperty(message, 'prpWorkflow.progress') || 0) + '%'"></span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2 mt-1">
+                                    <div class="bg-indigo-600 h-2 rounded-full transition-all duration-300" :style="'width: ' + (getMessageProperty(message, 'prpWorkflow.progress') || 0) + '%'"></div>
+                                </div>
+                                <div class="text-xs text-gray-400 mt-1">
+                                    Phase: <span x-text="formatPhase(getMessageProperty(message, 'prpWorkflow.phase'))"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        
+        <!-- Chat Input Area -->
+        <div class="chat-input-container">
+            <form @submit.prevent="sendChatMessage" class="relative">
+                <div class="input-wrapper relative">
+                    <textarea
+                        x-model="chatInput"
+                        @keydown.enter.prevent="handleEnterKey"
+                        @paste="handleChatPaste"
+                        @input="handleInputResize"
+                        placeholder="Ask me to generate content, analyze topics, or provide SEO insights..."
+                        class="chat-input w-full resize-none border rounded-lg pr-20 focus:outline-none"
+                        style="background-color: var(--bg-secondary); color: var(--text-primary); border-color: var(--border-color); min-height: 60px; max-height: 200px;"
+                        rows="1"
+                    ></textarea>
+                    
+                    <!-- Input Actions -->
+                    <div class="input-actions absolute right-3 bottom-3 flex items-center space-x-2">
+                        <button
+                            type="button"
+                            @click="attachFile"
+                            class="action-btn"
+                            title="Attach file"
+                        >
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                        <button
+                            type="submit"
+                            :disabled="!chatInput.trim() || sendingMessage"
+                            class="send-btn"
+                            :class="{ 'disabled': !chatInput.trim() || sendingMessage }"
+                        >
+                            <i x-show="!sendingMessage" class="fas fa-paper-plane"></i>
+                            <i x-show="sendingMessage" class="fas fa-spinner fa-spin"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
+            
+            <!-- Quick Actions -->
+            <div class="quick-actions mt-3 flex flex-wrap gap-2">
+                <button @click="insertQuickPrompt('Generate a comprehensive blog post')" class="quick-action-btn">
+                    <i class="fas fa-blog mr-1"></i>Blog Post
+                </button>
+                <button @click="insertQuickPrompt('Create an engaging article')" class="quick-action-btn">
+                    <i class="fas fa-newspaper mr-1"></i>Article
+                </button>
+                <button @click="insertQuickPrompt('analyze this content:')" class="quick-action-btn" style="border-color: var(--accent-primary); background-color: rgba(59, 130, 246, 0.1);">
+                    <i class="fas fa-chart-line mr-1"></i>Analyze Content
+                </button>
+                <button @click="insertQuickPrompt('Write social media content')" class="quick-action-btn">
+                    <i class="fas fa-share-alt mr-1"></i>Social Media
+                </button>
+                <button @click="insertQuickPrompt('Create email newsletter content')" class="quick-action-btn">
+                    <i class="fas fa-envelope mr-1"></i>Newsletter
+                </button>
+                <button @click="insertQuickPrompt('What should I write about')" class="quick-action-btn">
+                    <i class="fas fa-lightbulb mr-1"></i>Content Ideas
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Analysis Results -->
+    <div x-show="analysisResults !== null" class="space-y-8">
+        <!-- Content Overview -->
+        <div class="card p-6">
+            <h3 class="text-lg font-semibold mb-4">Content Overview</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-500" x-text="(analysisResults && analysisResults.word_count) || 0"></div>
+                    <div class="text-sm" style="color: var(--text-secondary)">Words</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-green-500" x-text="((analysisResults && analysisResults.reading_time) || 0).toFixed(1)"></div>
+                    <div class="text-sm" style="color: var(--text-secondary)">Minutes</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-yellow-500" x-text="(analysisResults && analysisResults.seo_score) || 0"></div>
+                    <div class="text-sm" style="color: var(--text-secondary)">SEO Score</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-purple-500" x-text="(analysisResults && analysisResults.readability_score) || 0"></div>
+                    <div class="text-sm" style="color: var(--text-secondary)">Readability</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generated Content -->
+        <div x-show="analysisResults && analysisResults.generated_content" class="card p-6">
+            <h3 class="text-lg font-semibold mb-4">Generated Content</h3>
+            
+            <div class="content-card-secondary rounded-lg p-4 mb-4">
+                <h4 class="font-medium text-blue-400 mb-2">Title</h4>
+                <p x-text="(analysisResults && analysisResults.generated_title) || ''"></p>
+            </div>
+            
+            <div class="content-card-secondary rounded-lg p-4 mb-4 max-h-96 overflow-y-auto">
+                <h4 class="font-medium text-green-400 mb-2">Generated Content</h4>
+                <div class="whitespace-pre-line text-sm" x-text="(analysisResults && analysisResults.generated_content) || ''"></div>
+            </div>
+            
+            <div class="flex space-x-4">
+                <button class="btn-primary" @click="copyToClipboard(analysisResults.generated_content)">
+                    <i class="fas fa-copy mr-2"></i>Copy Content
+                </button>
+                <button class="btn-primary" @click="saveContent()">
+                    <i class="fas fa-save mr-2"></i>Save Content
+                </button>
+                <button class="btn-secondary" @click="downloadContent()">
+                    <i class="fas fa-download mr-2"></i>Download
+                </button>
+                <div x-show="analysisResults && analysisResults.saved_id" class="flex items-center text-green-600 text-sm">
+                    <i class="fas fa-check-circle mr-1"></i>Auto-saved
+                </div>
+            </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="card p-6">
+            <h3 class="text-lg font-semibold mb-4">AI Recommendations</h3>
+            <div class="space-y-4">
+                <template x-for="(recommendation, index) in (analysisResults && analysisResults.recommendations) || []" :key="`rec-${index}-${recommendation.title || ''}`">
+                    <div class="flex items-start space-x-3 p-4 content-card-secondary rounded-lg">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center" :class="recommendation.type === 'improvement' ? 'bg-yellow-500' : recommendation.type === 'success' ? 'bg-green-500' : 'bg-red-500'">
+                            <i class="fas text-white text-sm" :class="recommendation.type === 'improvement' ? 'fa-lightbulb' : recommendation.type === 'success' ? 'fa-check' : 'fa-exclamation'"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-medium mb-1" x-text="recommendation.title"></h4>
+                            <p class="text-sm" style="color: var(--text-secondary);" x-text="recommendation.description"></p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Content -->
+    <div class="card p-6 mt-8">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Recent Content</h3>
+            <button @click="refreshRecentContent()" class="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700" :disabled="loadingRecentContent">
+                <i class="fas" :class="loadingRecentContent ? 'fa-spinner fa-spin' : 'fa-sync-alt'" class="mr-1"></i>
+                <span x-text="loadingRecentContent ? 'Loading...' : 'Refresh'"></span>
+            </button>
+        </div>
+        
+        <!-- Loading State -->
+        <div x-show="loadingRecentContent && recentContent.length === 0" class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-2xl mb-4" style="color: var(--text-muted);"></i>
+            <p style="color: var(--text-secondary);">Loading recent content...</p>
+        </div>
+        
+        <!-- Empty State -->
+        <div x-show="!loadingRecentContent && recentContent.length === 0" class="text-center py-8">
+            <i class="fas fa-file-alt text-4xl mb-4" style="color: var(--text-muted);"></i>
+            <p style="color: var(--text-secondary);">No recent content found</p>
+            <p class="text-sm mt-2" style="color: var(--text-muted);">Generated content will appear here automatically</p>
+        </div>
+        
+        <!-- Content Table -->
+        <div x-show="recentContent.length > 0" class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b" style="border-color: var(--border-color);">
+                        <th class="text-left py-2">Title</th>
+                        <th class="text-left py-2">Type</th>
+                        <th class="text-left py-2">Words</th>
+                        <th class="text-left py-2">SEO Score</th>
+                        <th class="text-left py-2">Date</th>
+                        <th class="text-left py-2">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="content in recentContent" :key="content.id">
+                        <tr class="border-b" style="border-color: var(--border-color);">
+                            <td class="py-3">
+                                <div class="font-medium" x-text="content.title"></div>
+                            </td>
+                            <td class="py-3">
+                                <span class="px-2 py-1 bg-blue-500 text-xs rounded" x-text="content.content_type"></span>
+                            </td>
+                            <td class="py-3" x-text="formatNumber(content.word_count || 0)"></td>
+                            <td class="py-3">
+                                <span class="font-medium" :class="content.seo_score >= 80 ? 'text-green-400' : content.seo_score >= 60 ? 'text-yellow-400' : 'text-red-400'" x-text="content.seo_score || 0"></span>
+                            </td>
+                            <td class="py-3 text-sm" style="color: var(--text-secondary)" x-text="formatDate(content.created_at)"></td>
+                            <td class="py-3">
+                                <button @click="analyzeContent(content.id)" class="text-blue-400 hover:text-blue-300 mr-2">
+                                    <i class="fas fa-chart-line"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

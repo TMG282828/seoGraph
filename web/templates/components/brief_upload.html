@@ -1,0 +1,98 @@
+<!-- Brief Upload Section (Primary) -->
+<div class="card p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold">Content Brief</h3>
+        <div class="flex items-center space-x-2">
+            <span x-show="uploadedBrief" class="text-sm px-2 py-1 bg-green-100 text-green-800 rounded-full">
+                <i class="fas fa-check-circle mr-1"></i>Brief Loaded
+            </span>
+            <span x-show="!databaseAvailable" class="text-sm px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full" title="Working in offline mode">
+                <i class="fas fa-wifi-slash mr-1"></i>Offline Mode
+            </span>
+            <button x-show="uploadedBrief" @click="clearBrief()" class="text-sm text-red-500 hover:text-red-700">
+                <i class="fas fa-times mr-1"></i>Clear
+            </button>
+        </div>
+    </div>
+    
+    <!-- Upload Area -->
+    <div x-show="!uploadedBrief" class="border-2 border-dashed rounded-lg p-8 text-center" style="border-color: var(--border-color);">
+        <i class="fas fa-file-upload text-4xl mb-4" style="color: var(--text-muted);"></i>
+        <h4 class="text-lg font-medium mb-2">Upload Your Content Brief</h4>
+        <p class="text-sm mb-4" style="color: var(--text-secondary);">
+            Upload a brief to provide context and requirements for your content generation
+        </p>
+        
+        <div class="flex flex-wrap justify-center gap-2 mb-4">
+            <label class="btn-primary cursor-pointer">
+                <i class="fas fa-upload mr-2"></i>Upload File
+                <input type="file" @change="handleBriefUpload" class="hidden" accept=".txt,.md,.pdf,.docx,.html">
+            </label>
+            
+            <button @click="showUrlImport = !showUrlImport" class="btn-secondary">
+                <i class="fas fa-link mr-2"></i>Import from URL
+            </button>
+            
+            <button @click="showManualBrief = !showManualBrief" class="btn-secondary">
+                <i class="fas fa-edit mr-2"></i>Write Brief
+            </button>
+            
+            <button x-show="!databaseAvailable && savedBriefs.length === 0" @click="createSampleBrief()" class="btn-secondary" style="border-color: var(--accent-primary); background-color: rgba(59, 130, 246, 0.1);">
+                <i class="fas fa-magic mr-2"></i>Demo Brief
+            </button>
+        </div>
+        
+        <!-- URL Import -->
+        <div x-show="showUrlImport" class="flex gap-2 mt-4">
+            <input 
+                type="url" 
+                x-model="urlToImport" 
+                placeholder="Enter URL to import brief..."
+                class="flex-1 p-3 border rounded-lg focus:outline-none" 
+                style="background-color: var(--bg-secondary); color: var(--text-primary); border-color: var(--border-color);"
+            >
+            <button @click="importBriefFromUrl()" class="btn-primary">
+                <i class="fas fa-download mr-2"></i>Import
+            </button>
+        </div>
+        
+        <!-- Manual Brief Entry -->
+        <div x-show="showManualBrief" class="mt-4">
+            <textarea
+                x-model="manualBrief"
+                placeholder="Enter your content brief, requirements, target audience, key points, etc..."
+                class="w-full p-4 border rounded-lg focus:outline-none h-32" 
+                style="background-color: var(--bg-secondary); color: var(--text-primary); border-color: var(--border-color);"
+            ></textarea>
+            <div class="flex justify-end gap-2 mt-2">
+                <button @click="showManualBrief = false; manualBrief = ''" class="btn-secondary">Cancel</button>
+                <button @click="saveManualBrief()" class="btn-primary">Save Brief</button>
+            </div>
+        </div>
+        
+        <!-- Upload Progress -->
+        <div x-show="uploadProgress > 0" class="w-full rounded-full h-2 mt-4" style="background-color: var(--bg-tertiary);">
+            <div class="progress-blue h-2 rounded-full transition-all duration-300" :style="`width: ${uploadProgress}%`"></div>
+        </div>
+    </div>
+    
+    <!-- Brief Summary (when loaded) -->
+    <div x-show="uploadedBrief" class="space-y-4">
+        <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div class="flex items-start justify-between mb-2">
+                <h4 class="font-medium text-blue-800 dark:text-blue-200">
+                    <i class="fas fa-file-alt mr-2"></i><span x-text="briefSummary.title || 'Content Brief'"></span>
+                </h4>
+                <div class="text-xs text-blue-600 dark:text-blue-400">
+                    <span x-text="briefSummary.wordCount || 0"></span> words
+                </div>
+            </div>
+            <p class="text-sm text-blue-700 dark:text-blue-300 mb-2" x-text="briefSummary.summary || 'Brief loaded and ready for content generation'"></p>
+            <div x-show="briefSummary.keywords && briefSummary.keywords.length > 0" class="flex flex-wrap gap-1">
+                <template x-for="keyword in (briefSummary.keywords || []).slice(0, 5)" :key="keyword">
+                    <span class="px-2 py-1 bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-xs rounded-full" x-text="keyword"></span>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>

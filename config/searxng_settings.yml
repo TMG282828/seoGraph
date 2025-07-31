@@ -1,0 +1,55 @@
+# SearXNG Configuration for SERP Scraping
+# Minimal configuration for JSON API access
+
+search:
+  safe_search: 0
+  autocomplete: google
+  default_lang: ""
+  formats:
+    - html
+    - json
+    - csv
+    - rss
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  base_url: http://localhost:8080
+  limiter: false
+  image_proxy: true
+
+outgoing:
+  request_timeout: 3.0
+  max_request_timeout: 10.0
+  verify_ssl: true
+  delay: 1.0  # 1 second delay between requests
+
+engines:
+  - name: google
+    engine: google
+    categories: general
+    shortcut: go
+    timeout: 10.0
+    disabled: false
+    using_tor_proxy: false
+    enable_http: true
+    safe_search: 0
+    proxies:
+      http: ""  # Add proxy if needed
+      https: ""  # Add proxy if needed
+
+  - name: bing
+    engine: bing
+    categories: general
+    shortcut: bi
+    timeout: 3.0
+
+  - name: duckduckgo
+    engine: duckduckgo
+    categories: general
+    shortcut: ddg
+    timeout: 3.0
+
+general:
+  instance_name: "SearXNG SERP Scraper"
+  debug: false

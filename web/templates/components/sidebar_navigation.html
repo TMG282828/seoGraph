@@ -1,0 +1,83 @@
+<!-- Sidebar -->
+<div class="sidebar w-64 min-h-screen p-4 flex flex-col">
+    <!-- Logo -->
+    <div class="flex items-center mb-6">
+        <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
+            <i class="fas fa-chart-network text-white"></i>
+        </div>
+        <h1 class="text-lg font-bold">SEO Content AI</h1>
+    </div>
+    
+    <!-- Workspace Selector -->
+    {% include "components/workspace_selector.html" %}
+    
+    <!-- Visual separator -->
+    <div class="border-t mb-6 mt-2" style="border-color: var(--border-color);"></div>
+
+    <!-- Navigation -->
+    <nav class="flex-1">
+        <ul class="space-y-2">
+            <li>
+                <a href="/" class="nav-item flex items-center px-4 py-2 rounded-lg {% if request.url.path == '/' %}active{% endif %}">
+                    <i class="fas fa-home mr-3"></i>
+                    Dashboard
+                </a>
+            </li>
+            <li>
+                <a href="/seo-monitor" class="nav-item flex items-center px-4 py-2 rounded-lg {% if request.url.path == '/seo-monitor' %}active{% endif %}">
+                    <i class="fas fa-chart-line mr-3"></i>
+                    SEO Monitor
+                </a>
+            </li>
+            <li>
+                <a href="/seo-research" class="nav-item flex items-center px-4 py-2 rounded-lg {% if request.url.path == '/seo-research' %}active{% endif %}">
+                    <i class="fas fa-search mr-3"></i>
+                    SEO Research
+                </a>
+            </li>
+            <li>
+                <a href="/content-studio" class="nav-item flex items-center px-4 py-2 rounded-lg {% if request.url.path == '/content-studio' %}active{% endif %}">
+                    <i class="fas fa-edit mr-3"></i>
+                    Content Studio
+                </a>
+            </li>
+            <li>
+                <a href="/knowledge-base" class="nav-item flex items-center px-4 py-2 rounded-lg {% if request.url.path == '/knowledge-base' %}active{% endif %}">
+                    <i class="fas fa-database mr-3"></i>
+                    Knowledge Base
+                </a>
+            </li>
+            <li>
+                <a href="/graph" class="nav-item flex items-center px-4 py-2 rounded-lg {% if request.url.path == '/graph' %}active{% endif %}">
+                    <i class="fas fa-project-diagram mr-3"></i>
+                    Knowledge Graph
+                </a>
+            </li>
+            <li>
+                <a href="/settings" class="nav-item flex items-center px-4 py-2 rounded-lg {% if request.url.path == '/settings' %}active{% endif %}">
+                    <i class="fas fa-cog mr-3"></i>
+                    Settings
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Status Indicators -->
+    <div class="mt-auto">
+        <div class="text-sm mb-2" style="color: var(--text-muted);">System Status</div>
+        <div class="space-y-1">
+            <div class="flex items-center">
+                <span class="status-indicator status-online"></span>
+                <span class="text-sm">AI Agents</span>
+            </div>
+            <div class="flex items-center">
+                <span class="status-indicator status-online"></span>
+                <span class="text-sm">Database</span>
+            </div>
+            <div class="flex items-center">
+                <span class="status-indicator status-warning"></span>
+                <span class="text-sm">Search Engine</span>
+            </div>
+        </div>
+    </div>
+</div>

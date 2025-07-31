@@ -1,0 +1,24 @@
+{
+  "name": "context-engineering-intro",
+  "version": "1.0.0",
+  "description": "A comprehensive multi-agent AI system for SEO content analysis, optimization, and knowledge graph management. Built with Pydantic AI, Neo4j, Qdrant, and modern Python architecture.",
+  "main": "index.js",
+  "directories": {
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TMG282828/TMG_conGen.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/TMG282828/TMG_conGen/issues"
+  },
+  "homepage": "https://github.com/TMG282828/TMG_conGen#readme"
+}

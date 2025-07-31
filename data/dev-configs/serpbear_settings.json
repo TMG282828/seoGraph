@@ -1,0 +1,21 @@
+{
+  "scraper_type": "custom",
+  "custom_scraper_url": "http://host.docker.internal:8002",
+  "scaping_api": "http://host.docker.internal:8002",
+  "notification_interval": "daily",
+  "notification_email": "",
+  "notification_email_from": "",
+  "notification_email_from_name": "SerpBear",
+  "smtp_server": "",
+  "smtp_port": "",
+  "smtp_username": "",
+  "smtp_password": "",
+  "scrape_retry": true,
+  "screenshot_key": "69408-serpbear",
+  "search_console": false,
+  "search_console_client_email": "",
+  "search_console_private_key": "",
+  "keywordsColumns": ["Best", "History", "Volume"],
+  "custom_scraper_enabled": true,
+  "last_updated": "2025-07-26T00:00:00+00:00"
+}

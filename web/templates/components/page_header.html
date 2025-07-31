@@ -1,0 +1,32 @@
+<!-- Header -->
+<div class="flex items-center justify-between mb-8">
+    <div>
+        <h2 class="text-2xl font-bold">{% block page_title %}Dashboard{% endblock %}</h2>
+        <p style="color: var(--text-secondary)">{% block page_description %}Monitor your SEO content performance{% endblock %}</p>
+    </div>
+    <div class="flex items-center space-x-4">
+        <button id="global-theme-toggle" class="btn-secondary px-3 py-2 rounded-lg flex items-center space-x-2 transition-colors border" style="border-color: var(--border-color)">
+            <i class="fas fa-moon text-sm"></i>
+            <span class="text-sm">Dark</span>
+        </button>
+        <button class="btn-primary" onclick="window.location.href='/content'">
+            <i class="fas fa-plus mr-2"></i>
+            New Content
+        </button>
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background-color: var(--bg-tertiary);">
+                <i class="fas fa-user text-sm"></i>
+            </div>
+            <span class="text-sm" id="userName">User</span>
+            <div class="relative">
+                <button id="userMenuBtn" class="p-1" style="color: var(--text-secondary);" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-secondary)'">
+                    <i class="fas fa-chevron-down text-xs"></i>
+                </button>
+                <div id="userMenu" class="hidden absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 z-50" style="background-color: var(--bg-secondary); border: 1px solid var(--border-color);">
+                    <a href="/settings" class="block px-4 py-2 text-sm hover:bg-opacity-10" style="color: var(--text-secondary);" onmouseover="this.style.backgroundColor='var(--bg-tertiary)'" onmouseout="this.style.backgroundColor='transparent'">Settings</a>
+                    <button id="logoutBtn" class="block w-full text-left px-4 py-2 text-sm hover:bg-opacity-10" style="color: var(--text-secondary);" onmouseover="this.style.backgroundColor='var(--bg-tertiary)'" onmouseout="this.style.backgroundColor='transparent'">Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRP Workflow Frontend Debug</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .message { border: 1px solid #ccc; margin: 10px 0; padding: 10px; }
+        .checkpoint-actions { background: #f0f0f0; padding: 10px; margin: 10px 0; border: 2px solid #007bff; }
+        button { margin: 5px; padding: 5px 10px; }
+        .debug { background: #ffffcc; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>PRP Workflow Frontend Debug</h1>
+    
+    <div x-data="debugApp()" x-init="init()">
+        <div class="debug">
+            <h3>Debug Info</h3>
+            <p>Messages count: <span x-text="chatMessages.length"></span></p>
+            <p>Messages with checkpointActions: <span x-text="messagesWithCheckpoints"></span></p>
+            <button @click="simulatePRPResponse()">Simulate PRP Response</button>
+            <button @click="testAddMessage()">Test Add Message</button>
+            <button @click="clearMessages()">Clear Messages</button>
+        </div>
+        
+        <div class="messages">
+            <h3>Chat Messages</h3>
+            <template x-for="message in chatMessages" :key="message.id">
+                <div class="message">
+                    <div>
+                        <strong>Type:</strong> <span x-text="message.type"></span> | 
+                        <strong>Has Checkpoint:</strong> <span x-text="hasCheckpointActions(message)"></span>
+                    </div>
+                    <div x-text="message.content"></div>
+                    
+                    <!-- Checkpoint Actions Debug -->
+                    <div x-show="hasCheckpointActions(message) && message.type === 'assistant'" 
+                         class="checkpoint-actions">
+                        <h4>Checkpoint Actions (VISIBLE)</h4>
+                        <div>
+                            <strong>Workflow ID:</strong> <span x-text="message.checkpointActions?.workflowId || 'N/A'"></span><br>
+                            <strong>Checkpoint ID:</strong> <span x-text="message.checkpointActions?.checkpointId || 'N/A'"></span><br>
+                            <strong>Phase:</strong> <span x-text="message.checkpointActions?.phase || 'N/A'"></span><br>
+                            <strong>Title:</strong> <span x-text="message.checkpointActions?.title || 'N/A'"></span>
+                        </div>
+                        <button @click="console.log('Approve clicked')">✅ Approve</button>
+                        <button @click="console.log('Reject clicked')">❌ Reject</button>
+                        <button @click="console.log('Modify clicked')">✏️ Modify</button>
+                    </div>
+                    
+                    <!-- Debug checkpoint data -->
+                    <div class="debug" x-show="message.checkpointActions">
+                        <strong>Raw checkpointActions:</strong>
+                        <pre x-text="JSON.stringify(message.checkpointActions, null, 2)"></pre>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <script>
+        function debugApp() {
+            return {
+                chatMessages: [],
+                
+                init() {
+                    console.log('Debug app initialized');
+                },
+                
+                get messagesWithCheckpoints() {
+                    return this.chatMessages.filter(msg => this.hasCheckpointActions(msg)).length;
+                },
+                
+                hasCheckpointActions(message) {
+                    const result = message && message.checkpointActions && typeof message.checkpointActions === 'object';
+                    console.log('hasCheckpointActions check:', {
+                        messageId: message?.id,
+                        hasMessage: !!message,
+                        hasCheckpointActions: !!message?.checkpointActions,
+                        typeOfCheckpointActions: typeof message?.checkpointActions,
+                        result: result
+                    });
+                    return result;
+                },
+                
+                addMessage(messageData) {
+                    const message = {
+                        id: Date.now() + Math.random(),
+                        timestamp: new Date().toISOString(),
+                        ...messageData
+                    };
+                    
+                    console.log('Adding message:', {
+                        type: message.type,
+                        hasCheckpointActions: !!message.checkpointActions,
+                        checkpointData: message.checkpointActions
+                    });
+                    
+                    this.chatMessages.push(message);
+                    
+                    // Force reactivity
+                    const currentMessages = [...this.chatMessages];
+                    this.chatMessages = currentMessages;
+                    
+                    console.log('Message added. Total messages:', this.chatMessages.length);
+                },
+                
+                simulatePRPResponse() {
+                    console.log('Simulating PRP response...');
+                    
+                    // This is the exact structure from the API test
+                    const mockResponse = {
+                        "success": true,
+                        "response": "I've analyzed your brief about 'Create an SEO content marketing strategy guide'. Here's my understanding:\\n\\n**Main Topic**: SEO content marketing strategy\\n**Key Themes**: SEO, content marketing, strategy development\\n**Target Audience**: marketers and content creators\\n**Content Type**: guide\\n**Complexity**: medium\\n\\nWould you like me to proceed with creating a content plan based on this analysis?",
+                        "checkpointActions": {
+                            "workflowId": "prp_20250728_021928_2671",
+                            "checkpointId": "checkpoint_efdfa8e2",
+                            "phase": "brief_analysis",
+                            "title": "Brief Analysis Complete",
+                            "description": "AI has analyzed your brief. Please review the understanding before proceeding."
+                        }
+                    };
+                    
+                    this.addMessage({
+                        type: 'assistant',
+                        content: mockResponse.response,
+                        checkpointActions: mockResponse.checkpointActions
+                    });
+                },
+                
+                testAddMessage() {
+                    this.addMessage({
+                        type: 'assistant',
+                        content: 'Test message with checkpoint actions',
+                        checkpointActions: {
+                            workflowId: 'test-123',
+                            checkpointId: 'checkpoint-456',
+                            phase: 'test_phase',
+                            title: 'Test Checkpoint',
+                            description: 'This is a test checkpoint'
+                        }
+                    });
+                },
+                
+                clearMessages() {
+                    this.chatMessages = [];
+                }
+            };
+        }
+    </script>
+</body>
+</html>

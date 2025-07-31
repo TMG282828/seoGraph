@@ -1,0 +1,115 @@
+<!-- Tracked Keywords Management -->
+<div class="card p-6 mb-8">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center">
+            <i class="fas fa-bullseye text-blue-500 mr-3"></i>
+            <div>
+                <h3 class="text-lg font-semibold">My Tracked Keywords</h3>
+                <p class="text-sm text-gray-400">Keywords you're actively monitoring for rankings</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button @click="showAddKeywordModal = true" class="btn-primary text-sm">
+                <i class="fas fa-plus mr-2"></i>Add Keyword
+            </button>
+            <button @click="syncTrackedKeywordsToSerpBear()" 
+                    class="btn-secondary text-sm"
+                    :disabled="syncingToSerpBear"
+                    :class="{ 'opacity-50': syncingToSerpBear }">
+                <span x-show="!syncingToSerpBear">
+                    <i class="fas fa-sync mr-2"></i>Sync to SerpBear
+                </span>
+                <span x-show="syncingToSerpBear">
+                    <i class="fas fa-spinner fa-spin mr-2"></i>Syncing...
+                </span>
+            </button>
+            <button @click="removeSelectedKeywords()" 
+                    class="btn-danger text-sm"
+                    x-show="selectedKeywords.length > 0">
+                <i class="fas fa-trash mr-2"></i>Remove Selected (<span x-text="selectedKeywords.length"></span>)
+            </button>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-gray-700">
+                    <th class="text-left py-3 w-8">
+                        <input type="checkbox" 
+                               x-model="selectAllKeywords"
+                               @change="toggleSelectAllKeywords()"
+                               class="rounded">
+                    </th>
+                    <th class="text-left py-3">Keyword</th>
+                    <th class="text-left py-3">Domain</th>
+                    <th class="text-left py-3">Position</th>
+                    <th class="text-left py-3">Last Updated</th>
+                    <th class="text-left py-3">SerpBear Status</th>
+                    <th class="text-left py-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="keyword in trackedKeywords" :key="keyword.id">
+                    <tr class="border-b border-gray-800 hover:bg-gray-800">
+                        <td class="py-3">
+                            <input type="checkbox" 
+                                   :checked="isKeywordSelected(keyword.id)"
+                                   @change="toggleKeywordSelection(keyword.id)"
+                                   class="rounded">
+                        </td>
+                        <td class="py-3">
+                            <div class="font-medium" x-text="keyword.keyword"></div>
+                            <div class="text-sm text-gray-400" x-text="keyword.target_url || 'No target URL'"></div>
+                        </td>
+                        <td class="py-3">
+                            <span class="text-sm" x-text="keyword.domain"></span>
+                        </td>
+                        <td class="py-3">
+                            <div class="font-semibold" x-text="getKeywordPosition(keyword.keyword, keyword.domain) || 'Not ranked'"></div>
+                            <div class="text-xs mt-1">
+                                <span class="px-1 py-0.5 bg-blue-900 text-blue-300 rounded" 
+                                      x-show="getKeywordPosition(keyword.keyword, keyword.domain) > 0">
+                                    🎯 Live SERP
+                                </span>
+                                <span class="px-1 py-0.5 bg-gray-700 text-gray-300 rounded" 
+                                      x-show="getKeywordPosition(keyword.keyword, keyword.domain) === 0">
+                                    ❌ Not ranking
+                                </span>
+                            </div>
+                        </td>
+                        <td class="py-3">
+                            <span class="text-sm" x-text="formatDate(keyword.updated_at)"></span>
+                        </td>
+                        <td class="py-3">
+                            <span class="px-2 py-1 rounded text-xs"
+                                  :class="keyword.serpbear_synced ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'"
+                                  x-text="keyword.serpbear_synced ? '✅ Synced' : '⏳ Pending'">
+                            </span>
+                        </td>
+                        <td class="py-3">
+                            <div class="flex gap-1">
+                                <button class="text-red-500 hover:text-red-400" 
+                                        @click="removeTrackedKeyword(keyword.id)"
+                                        title="Remove from tracker">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                <button class="text-blue-500 hover:text-blue-400"
+                                        title="Edit keyword">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </template>
+                <tr x-show="trackedKeywords.length === 0">
+                    <td colspan="7" class="py-8 text-center text-gray-400">
+                        <i class="fas fa-bullseye text-3xl mb-3"></i>
+                        <div class="text-lg mb-2">No tracked keywords</div>
+                        <div class="text-sm">Add keywords to track their ranking performance</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

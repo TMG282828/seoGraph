@@ -1,0 +1,568 @@
+{% extends "base.html" %}
+
+{% block page_title %}Settings{% endblock %}
+{% block page_description %}Configure integrations, API keys, and system preferences{% endblock %}
+
+{% block content %}
+
+<!-- Temporary Authentication Setup for Testing -->
+<script>
+    // Real user authentication token for admin@twistworld.co.uk
+    const realToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJiOTQ1YmFlLWY2NGQtNDg1OS1iMGRkLTg2NDE1ZDM1M2EyZCIsImVtYWlsIjoiYWRtaW5AdHdpc3R3b3JsZC5jby51ayIsImRpc3BsYXlfbmFtZSI6IkFkbWluIFRlYW0iLCJvcmdhbml6YXRpb25faWQiOiJ0d2lzdHdvcmxkLW9yZyIsInJvbGUiOiJvd25lciIsImF2YXRhcl91cmwiOm51bGwsImV4cCI6MTc1NjU1NTI5M30.j0BZGMildyXHBbrdReh6qgLMWLokxCEmZZpCbGuhwmQ';
+    
+    // Set token in localStorage and cookie for workspace manager
+    localStorage.setItem('access_token', realToken);
+    document.cookie = `access_token=${realToken}; path=/; secure; samesite=strict`;
+    
+    console.log('🔑 Real user authentication token set for admin@twistworld.co.uk');
+</script>
+
+<script>
+    function settingsData() {
+        return {
+            settings: {
+                checkinFrequency: 'medium',
+                requireApproval: true,
+                notifyLowConfidence: true
+            },
+            apiKeys: {
+                openai: '',
+                langfuse: {
+                    public: '',
+                    secret: ''
+                }
+            },
+            serpbearSettings: {
+                connection: {
+                    base_url: 'http://localhost:3001',
+                    api_key: '',
+                    primary_domain: ''
+                },
+                search_console: {
+                    enabled: false,
+                    client_email: '',
+                    private_key: ''
+                },
+                google_ads: {
+                    enabled: false,
+                    client_id: '',
+                    client_secret: '',
+                    refresh_token: '',
+                    developer_token: '',
+                    customer_id: ''
+                },
+                connection_status: 'disconnected',
+                last_updated: null
+            },
+            systemConfig: {
+                maxContentLength: 50000,
+                batchSize: 10,
+                enableCaching: true
+            },
+            notifications: {
+                email: true,
+                browser: false,
+                emailAddress: '',
+                reportFrequency: 'weekly'
+            },
+            
+            async loadSettings() {
+                // Load settings from API
+                try {
+                    console.log('Loading settings...');
+                    
+                    // Load general app settings
+                    const appResponse = await fetch('/api/settings/');
+                    if (appResponse.ok) {
+                        const appData = await appResponse.json();
+                        this.settings = appData.settings;
+                        this.apiKeys = {
+                            openai: appData.api_keys.openai,
+                            langfuse: {
+                                public: appData.api_keys.langfuse_public,
+                                secret: appData.api_keys.langfuse_secret
+                            }
+                        };
+                        this.systemConfig = appData.system_config;
+                        this.notifications = appData.notifications;
+                    }
+                    
+                    // Load SerpBear settings
+                    const serpResponse = await fetch('/api/serpbear-settings/current');
+                    if (serpResponse.ok) {
+                        const serpData = await serpResponse.json();
+                        this.serpbearSettings = serpData.settings;
+                    }
+                    
+                    console.log('Settings loaded successfully');
+                } catch (error) {
+                    console.error('Failed to load settings:', error);
+                }
+            },
+            
+            async saveSettings() {
+                try {
+                    console.log('Saving settings...');
+                    
+                    // Save general app settings
+                    const appSettingsRequest = {
+                        settings: this.settings,
+                        api_keys: {
+                            openai: this.apiKeys.openai,
+                            langfuse_public: this.apiKeys.langfuse.public,
+                            langfuse_secret: this.apiKeys.langfuse.secret
+                        },
+                        system_config: this.systemConfig,
+                        notifications: this.notifications
+                    };
+                    
+                    const appResponse = await fetch('/api/settings/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(appSettingsRequest)
+                    });
+                    
+                    if (!appResponse.ok) {
+                        throw new Error('Failed to save app settings');
+                    }
+                    
+                    // Save SerpBear settings
+                    const serpResponse = await fetch('/api/serpbear-settings/save', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(this.serpbearSettings)
+                    });
+                    
+                    if (!serpResponse.ok) {
+                        throw new Error('Failed to save SerpBear settings');
+                    }
+                    
+                    alert('Settings saved successfully!');
+                } catch (error) {
+                    console.error('Failed to save settings:', error);
+                    alert('Failed to save settings. Please try again.');
+                }
+            },
+            
+            async testConfiguration() {
+                try {
+                    console.log('Testing configuration...');
+                    
+                    // Test general API configuration
+                    const testResponse = await fetch('/api/settings/test-configuration', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+                    
+                    if (testResponse.ok) {
+                        const testResults = await testResponse.json();
+                        
+                        let message = 'Configuration Test Results:\n\n';
+                        testResults.tests.forEach(test => {
+                            const status = test.status === 'valid_format' ? '✅' : 
+                                         test.status === 'not_configured' ? '⚠️' : '❌';
+                            message += `${status} ${test.service}: ${test.message}\n`;
+                        });
+                        
+                        // Test SerpBear connection if configured
+                        const serpTestResponse = await fetch('/api/serpbear-settings/test-connection', {
+                            method: 'POST'
+                        });
+                        
+                        if (serpTestResponse.ok) {
+                            const serpResults = await serpTestResponse.json();
+                            const serpStatus = serpResults.connected ? '✅' : '❌';
+                            message += `${serpStatus} SerpBear: ${serpResults.connected ? 'Connected successfully' : serpResults.error}\n`;
+                        }
+                        
+                        alert(message);
+                    } else {
+                        throw new Error('Configuration test failed');
+                    }
+                } catch (error) {
+                    console.error('Configuration test failed:', error);
+                    alert('Configuration test failed. Please check your settings.');
+                }
+            },
+            
+            async resetToDefaults() {
+                if (confirm('Are you sure you want to reset all settings to defaults?')) {
+                    try {
+                        console.log('Resetting settings to defaults...');
+                        
+                        const response = await fetch('/api/settings/reset-defaults', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            // Reload settings from API after reset
+                            await this.loadSettings();
+                            alert('Settings reset to defaults successfully!');
+                        } else {
+                            throw new Error('Failed to reset settings');
+                        }
+                    } catch (error) {
+                        console.error('Failed to reset settings:', error);
+                        alert('Failed to reset settings. Please try again.');
+                    }
+                }
+            },
+            
+            async loadSerpBearSettings() {
+                try {
+                    const response = await fetch('/api/serpbear-settings/current');
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            this.serpbearSettings = {
+                                connection: data.settings.connection || this.serpbearSettings.connection,
+                                search_console: data.settings.search_console || this.serpbearSettings.search_console,
+                                google_ads: data.settings.google_ads || this.serpbearSettings.google_ads,
+                                connection_status: data.connection_status,
+                                last_updated: data.last_updated
+                            };
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load SerpBear settings:', error);
+                }
+            },
+            
+            async saveSerpBearSettings() {
+                try {
+                    const response = await fetch('/api/serpbear-settings/save', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            connection: this.serpbearSettings.connection,
+                            search_console: this.serpbearSettings.search_console,
+                            google_ads: this.serpbearSettings.google_ads
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            this.serpbearSettings.connection_status = data.connection_status;
+                            this.serpbearSettings.last_updated = data.last_updated;
+                            alert('SerpBear settings saved successfully!');
+                        } else {
+                            throw new Error('Save failed');
+                        }
+                    } else {
+                        throw new Error('HTTP error: ' + response.status);
+                    }
+                } catch (error) {
+                    console.error('Failed to save SerpBear settings:', error);
+                    alert('Failed to save SerpBear settings. Please try again.');
+                }
+            },
+            
+            async testSerpBearConnection() {
+                try {
+                    this.serpbearSettings.connection_status = 'testing';
+                    
+                    const response = await fetch('/api/serpbear-settings/test-connection', {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success && data.connected) {
+                            this.serpbearSettings.connection_status = 'connected';
+                            alert(`Connection successful!\n\nDomains tracked: ${data.stats.domains_tracked}\nTotal keywords: ${data.stats.total_keywords}`);
+                        } else {
+                            this.serpbearSettings.connection_status = 'error';
+                            alert('Connection failed: ' + (data.error || 'Unknown error'));
+                        }
+                    } else {
+                        throw new Error('HTTP error: ' + response.status);
+                    }
+                } catch (error) {
+                    console.error('Connection test failed:', error);
+                    this.serpbearSettings.connection_status = 'error';
+                    alert('Connection test failed: ' + error.message);
+                }
+            },
+            
+            init() {
+                this.loadSettings();
+                this.loadSerpBearSettings();
+            }
+        };
+    }
+</script>
+
+<div x-data="settingsData()" x-init="init()"
+
+    <!-- API Configuration -->
+    <div class="card p-6 mb-8">
+        <h3 class="text-lg font-semibold mb-6">API Configuration</h3>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+                <h4 class="font-medium mb-4">AI Services</h4>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">OpenAI API Key</label>
+                        <div class="relative">
+                            <input type="password" x-model="apiKeys.openai" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="sk-...">
+                            <div class="absolute right-2 top-2">
+                                <span class="status-indicator" :class="apiKeys.openai ? 'status-online' : 'status-offline'"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Langfuse Keys</label>
+                        <div class="space-y-2">
+                            <input type="password" x-model="apiKeys.langfuse.public" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="Public Key">
+                            <input type="password" x-model="apiKeys.langfuse.secret" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="Secret Key">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <h4 class="font-medium mb-4">Reserved for Future Integrations</h4>
+                <div class="p-4 bg-gray-800 rounded-lg">
+                    <p class="text-sm text-gray-400">Additional API integrations will be available here.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Configuration -->
+    <div class="card p-6 mb-8">
+        <h3 class="text-lg font-semibold mb-6">System Configuration</h3>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+                <h4 class="font-medium mb-4">Performance</h4>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Max Content Length</label>
+                        <input type="number" x-model="systemConfig.maxContentLength" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" min="1000" max="100000">
+                        <p class="text-xs text-gray-400 mt-1">Maximum characters per content item</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Batch Size</label>
+                        <select x-model="systemConfig.batchSize" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none">
+                            <option value="5">5 items</option>
+                            <option value="10">10 items</option>
+                            <option value="20">20 items</option>
+                            <option value="50">50 items</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="systemConfig.enableCaching" class="mr-2">
+                            <span>Enable embedding caching</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div>
+                <h4 class="font-medium mb-4">Notifications</h4>
+                <div class="space-y-4">
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="notifications.email" class="mr-2">
+                            <span>Email notifications</span>
+                        </label>
+                    </div>
+                    
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="notifications.browser" class="mr-2">
+                            <span>Browser notifications</span>
+                        </label>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Notification Email</label>
+                        <input type="email" x-model="notifications.emailAddress" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="your@email.com">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Report Frequency</label>
+                        <select x-model="notifications.reportFrequency" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="never">Never</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SerpBear Configuration -->
+    <div class="card p-6 mb-8">
+        <h3 class="text-lg font-semibold mb-6">SerpBear Rank Tracking</h3>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Connection Settings -->
+            <div>
+                <h4 class="font-medium mb-4">Connection Settings</h4>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">SerpBear URL</label>
+                        <input type="url" x-model="serpbearSettings.connection.base_url" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="http://localhost:3001">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">API Key</label>
+                        <div class="relative">
+                            <input type="password" x-model="serpbearSettings.connection.api_key" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="Enter SerpBear API key">
+                            <div class="absolute right-2 top-2">
+                                <span class="status-indicator" :class="{
+                                    'status-online': serpbearSettings.connection_status === 'connected',
+                                    'status-offline': serpbearSettings.connection_status === 'disconnected',
+                                    'status-error': serpbearSettings.connection_status === 'error',
+                                    'status-testing': serpbearSettings.connection_status === 'testing'
+                                }"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Primary Domain</label>
+                        <input type="text" x-model="serpbearSettings.connection.primary_domain" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="example.com">
+                    </div>
+                    
+                    <div class="flex space-x-2">
+                        <button @click="testSerpBearConnection()" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700" :disabled="serpbearSettings.connection_status === 'testing'">
+                            <i class="fas fa-plug mr-2"></i>
+                            <span x-text="serpbearSettings.connection_status === 'testing' ? 'Testing...' : 'Test Connection'"></span>
+                        </button>
+                        <button @click="saveSerpBearSettings()" class="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                            <i class="fas fa-save mr-2"></i>
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Google Integrations -->
+            <div>
+                <h4 class="font-medium mb-4">Google Integrations</h4>
+                
+                <!-- Google Search Console -->
+                <div class="mb-6">
+                    <div class="flex items-center justify-between mb-3">
+                        <h5 class="font-medium">Google Search Console</h5>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" x-model="serpbearSettings.search_console.enabled" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                        </label>
+                    </div>
+                    <div class="space-y-3" x-show="serpbearSettings.search_console.enabled">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Service Account Client Email</label>
+                            <input type="email" x-model="serpbearSettings.search_console.client_email" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="service-account@project.iam.gserviceaccount.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Service Account Private Key</label>
+                            <textarea x-model="serpbearSettings.search_console.private_key" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none h-20" placeholder="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"></textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Google Ads -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h5 class="font-medium">Google Ads</h5>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" x-model="serpbearSettings.google_ads.enabled" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                        </label>
+                    </div>
+                    <div class="space-y-3" x-show="serpbearSettings.google_ads.enabled">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Client ID</label>
+                            <input type="text" x-model="serpbearSettings.google_ads.client_id" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="Google Ads Client ID">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Client Secret</label>
+                            <input type="password" x-model="serpbearSettings.google_ads.client_secret" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="Google Ads Client Secret">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Refresh Token</label>
+                            <input type="password" x-model="serpbearSettings.google_ads.refresh_token" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="Google Ads Refresh Token">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Developer Token</label>
+                            <input type="password" x-model="serpbearSettings.google_ads.developer_token" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="Google Ads Developer Token">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Customer ID</label>
+                            <input type="text" x-model="serpbearSettings.google_ads.customer_id" class="w-full bg-gray-800 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none" placeholder="123-456-7890">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Status and Last Updated -->
+        <div class="mt-6 p-4 bg-gray-800 rounded-lg" x-show="serpbearSettings.last_updated">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <span class="status-indicator mr-2" :class="{
+                        'status-online': serpbearSettings.connection_status === 'connected',
+                        'status-offline': serpbearSettings.connection_status === 'disconnected',
+                        'status-error': serpbearSettings.connection_status === 'error'
+                    }"></span>
+                    <span class="text-sm font-medium" x-text="
+                        serpbearSettings.connection_status === 'connected' ? 'Connected' :
+                        serpbearSettings.connection_status === 'error' ? 'Connection Error' :
+                        'Disconnected'
+                    "></span>
+                </div>
+                <div class="text-xs text-gray-400" x-show="serpbearSettings.last_updated">
+                    Last updated: <span x-text="new Date(serpbearSettings.last_updated).toLocaleString()"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Action Buttons -->
+    <div class="flex justify-between">
+        <button @click="resetToDefaults()" class="px-6 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
+            Reset to Defaults
+        </button>
+        <div class="space-x-4">
+            <button @click="testConfiguration()" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                Test Configuration
+            </button>
+            <button @click="saveSettings()" class="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                <i class="fas fa-save mr-2"></i>
+                Save Settings
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Settings functionality is now handled inline in the content block
+    console.log('Settings script loaded');
+</script>
+{% endblock %}

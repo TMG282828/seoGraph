@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - SEO Content Knowledge Graph</title>
+    <link href="{{ url_for('static', path='/css/base.css') }}" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .auth-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 900px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            min-height: 600px;
+        }
+
+        .auth-visual {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .auth-visual::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23ffffff" fill-opacity="0.1"><circle cx="30" cy="30" r="4"/></g></svg>') repeat;
+            animation: float 20s infinite linear;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-60px, -60px); }
+        }
+
+        .visual-content {
+            text-align: center;
+            color: white;
+            z-index: 1;
+            position: relative;
+        }
+
+        .visual-content h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+
+        .visual-content p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .feature-list {
+            text-align: left;
+            max-width: 300px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            font-size: 0.95rem;
+        }
+
+        .feature-item::before {
+            content: '✓';
+            background: rgba(255, 255, 255, 0.2);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.75rem;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .auth-form-container {
+            padding: 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .auth-tabs {
+            display: flex;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 2rem;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: none;
+            background: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #64748b;
+        }
+
+        .auth-tab.active {
+            background: white;
+            color: #1e293b;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .auth-form {
+            display: none;
+        }
+
+        .auth-form.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .form-input:hover {
+            border-color: #d1d5db;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 30px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e5e7eb;
+        }
+
+        .divider span {
+            margin: 0 1rem;
+        }
+
+        .google-btn {
+            width: 100%;
+            background: white;
+            color: #374151;
+            border: 2px solid #e5e7eb;
+            padding: 0.875rem 1rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .google-btn:hover {
+            border-color: #d1d5db;
+            background: #f9fafb;
+            transform: translateY(-1px);
+        }
+
+        .alert {
+            padding: 0.875rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .alert.error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+        }
+
+        .alert.success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #16a34a;
+        }
+
+        .loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .loading.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .forgot-password {
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .forgot-password a {
+            color: #4f46e5;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .forgot-password a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .auth-container {
+                grid-template-columns: 1fr;
+                max-width: 400px;
+            }
+
+            .auth-visual {
+                display: none;
+            }
+
+            .auth-form-container {
+                padding: 2rem;
+            }
+
+            .visual-content h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container" x-data="authFlow()">
+        <div class="auth-visual">
+            <div class="visual-content">
+                <h1>SEO Content Knowledge Graph</h1>
+                <p>Transform your content strategy with AI-powered insights and multi-tenant architecture</p>
+                <div class="feature-list">
+                    <div class="feature-item">Multi-tenant organization setup</div>
+                    <div class="feature-item">AI-powered content analysis</div>
+                    <div class="feature-item">SEO optimization tools</div>
+                    <div class="feature-item">Knowledge graph visualization</div>
+                    <div class="feature-item">Brand voice configuration</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="auth-form-container">
+            <div class="auth-tabs">
+                <button type="button" class="auth-tab" :class="{ active: activeTab === 'signin' }" @click="activeTab = 'signin'">
+                    Sign In
+                </button>
+                <button type="button" class="auth-tab" :class="{ active: activeTab === 'signup' }" @click="activeTab = 'signup'">
+                    Sign Up
+                </button>
+            </div>
+
+            <!-- Error/Success Alerts -->
+            <div x-show="error" class="alert error" x-text="error"></div>
+            <div x-show="success" class="alert success" x-text="success"></div>
+
+            <!-- Sign In Form -->
+            <form class="auth-form" :class="{ active: activeTab === 'signin' }" @submit.prevent="signIn">
+                <div class="form-group">
+                    <label class="form-label" for="signin-email">Email</label>
+                    <input type="email" id="signin-email" class="form-input" x-model="signinForm.email" 
+                           placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signin-password">Password</label>
+                    <input type="password" id="signin-password" class="form-input" x-model="signinForm.password" 
+                           placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn-primary" :disabled="loading">
+                    <span x-show="!loading">Sign In</span>
+                    <div class="loading" :class="{ active: loading }">
+                        <div class="spinner"></div>
+                        <span>Signing in...</span>
+                    </div>
+                </button>
+                <div class="forgot-password">
+                    <a href="#" @click.prevent="showForgotPassword">Forgot your password?</a>
+                </div>
+            </form>
+
+            <!-- Sign Up Form -->
+            <form class="auth-form" :class="{ active: activeTab === 'signup' }" @submit.prevent="signUp">
+                <div class="form-group">
+                    <label class="form-label" for="signup-name">Full Name</label>
+                    <input type="text" id="signup-name" class="form-input" x-model="signupForm.name" 
+                           placeholder="Enter your full name" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signup-email">Email</label>
+                    <input type="email" id="signup-email" class="form-input" x-model="signupForm.email" 
+                           placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signup-password">Password</label>
+                    <input type="password" id="signup-password" class="form-input" x-model="signupForm.password" 
+                           placeholder="Create a password" required minlength="8">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signup-confirm">Confirm Password</label>
+                    <input type="password" id="signup-confirm" class="form-input" x-model="signupForm.confirmPassword" 
+                           placeholder="Confirm your password" required>
+                </div>
+                <button type="submit" class="btn-primary" :disabled="loading">
+                    <span x-show="!loading">Create Account</span>
+                    <div class="loading" :class="{ active: loading }">
+                        <div class="spinner"></div>
+                        <span>Creating account...</span>
+                    </div>
+                </button>
+            </form>
+
+            <div class="divider">
+                <span>Or continue with</span>
+            </div>
+
+            <button type="button" class="google-btn" @click="signInWithGoogle" :disabled="loading">
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
+            </button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script>
+        function authFlow() {
+            return {
+                activeTab: 'signin',
+                loading: false,
+                error: null,
+                success: null,
+                
+                signinForm: {
+                    email: '',
+                    password: ''
+                },
+                
+                signupForm: {
+                    name: '',
+                    email: '',
+                    password: '',
+                    confirmPassword: ''
+                },
+                
+                async signIn() {
+                    if (this.loading) return;
+                    
+                    this.loading = true;
+                    this.error = null;
+                    
+                    try {
+                        const response = await fetch('/api/auth/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                email: this.signinForm.email,
+                                password: this.signinForm.password
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            // Store auth token
+                            localStorage.setItem('authToken', data.access_token);
+                            localStorage.setItem('userEmail', data.user.email);
+                            
+                            this.success = 'Successfully signed in! Redirecting...';
+                            
+                            // Check if user needs onboarding (new organization setup)
+                            if (data.user.organization_id === 'demo-org-id' || !data.user.organization_id) {
+                                // Redirect to onboarding for new users
+                                setTimeout(() => window.location.href = '/onboarding', 1000);
+                            } else {
+                                // Redirect to dashboard for existing users
+                                setTimeout(() => window.location.href = '/', 1000);
+                            }
+                        } else {
+                            this.error = data.detail || 'Sign in failed. Please try again.';
+                        }
+                        
+                    } catch (error) {
+                        this.error = 'Network error. Please check your connection and try again.';
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async signUp() {
+                    if (this.loading) return;
+                    
+                    // Validate passwords match
+                    if (this.signupForm.password !== this.signupForm.confirmPassword) {
+                        this.error = 'Passwords do not match.';
+                        return;
+                    }
+                    
+                    this.loading = true;
+                    this.error = null;
+                    
+                    try {
+                        const response = await fetch('/api/auth/register', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                name: this.signupForm.name,
+                                email: this.signupForm.email,
+                                password: this.signupForm.password
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            // Store auth token
+                            localStorage.setItem('authToken', data.access_token);
+                            localStorage.setItem('userEmail', data.user.email);
+                            localStorage.setItem('userName', this.signupForm.name);
+                            
+                            this.success = 'Account created successfully! Redirecting to setup...';
+                            
+                            // Always redirect new signups to onboarding
+                            setTimeout(() => window.location.href = '/onboarding', 1000);
+                        } else {
+                            this.error = data.detail || 'Sign up failed. Please try again.';
+                        }
+                        
+                    } catch (error) {
+                        this.error = 'Network error. Please check your connection and try again.';
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async signInWithGoogle() {
+                    this.error = null;
+                    this.success = 'Redirecting to Google...';
+                    
+                    // For demo mode, simulate Google OAuth
+                    setTimeout(() => {
+                        const demoToken = 'demo-google-token-' + Date.now();
+                        localStorage.setItem('authToken', demoToken);
+                        localStorage.setItem('userEmail', 'demo@google.com');
+                        localStorage.setItem('userName', 'Google User');
+                        
+                        window.location.href = '/onboarding';
+                    }, 1000);
+                },
+                
+                showForgotPassword() {
+                    this.error = null;
+                    this.success = 'Password reset functionality will be available in production mode.';
+                }
+            };
+        }
+    </script>
+</body>
+</html>

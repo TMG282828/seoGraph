@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Graph Visualization - SEO Content System</title>
+    
+    <!-- External Libraries -->
+    <script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/cytoscape-cola@2.5.1/cytoscape-cola.js"></script>
+    <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+    <script src="https://unpkg.com/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
+    <script src="https://unpkg.com/d3@7.8.5/dist/d3.min.js"></script>
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/graph-visualization.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/base.css') }}">
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .page-container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .page-header {
+            background: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 16px 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .page-title {
+            margin: 0;
+            color: #333;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .page-subtitle {
+            margin: 4px 0 0 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .graph-section {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+        
+        .graph-sidebar {
+            width: 300px;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-section {
+            margin-bottom: 24px;
+        }
+        
+        .sidebar-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 12px 0;
+        }
+        
+        .graph-type-selector {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .graph-type-button {
+            padding: 12px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #333;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+        
+        .graph-type-button:hover {
+            background: #f8f9fa;
+            border-color: #007bff;
+        }
+        
+        .graph-type-button.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .graph-type-button .button-title {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+        }
+        
+        .graph-type-button .button-description {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+        
+        .graph-container-wrapper {
+            flex: 1;
+            min-height: 0;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e0e0e0;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 12px 0;
+            font-size: 0.9rem;
+        }
+        
+        .success-message {
+            color: #155724;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 12px 0;
+            font-size: 0.9rem;
+        }
+        
+        .info-panel {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+        
+        .info-panel h4 {
+            margin: 0 0 8px 0;
+            color: #333;
+            font-size: 0.9rem;
+        }
+        
+        .info-panel p {
+            margin: 0;
+            color: #666;
+            font-size: 0.8rem;
+            line-height: 1.4;
+        }
+        
+        .node-info {
+            display: none;
+        }
+        
+        .node-info.active {
+            display: block;
+        }
+        
+        .node-info-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .node-info-icon {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+        }
+        
+        .node-info-title {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .node-info-type {
+            background: #007bff;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+        }
+        
+        .node-info-details {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .node-info-detail {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+        }
+        
+        .node-info-detail .label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .node-info-detail .value {
+            color: #333;
+        }
+        
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+        }
+        
+        .theme-toggle button {
+            padding: 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            background: #ffffff;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        
+        .theme-toggle button:hover {
+            background: #f8f9fa;
+        }
+        
+        @media (max-width: 768px) {
+            .graph-section {
+                flex-direction: column;
+            }
+            
+            .graph-sidebar {
+                width: 100%;
+                height: auto;
+                max-height: 200px;
+            }
+            
+            .sidebar-title {
+                font-size: 0.9rem;
+            }
+            
+            .graph-type-selector {
+                flex-direction: row;
+                overflow-x: auto;
+                gap: 8px;
+                padding-bottom: 8px;
+            }
+            
+            .graph-type-button {
+                flex-shrink: 0;
+                min-width: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="page-header">
+            <h1 class="page-title">Knowledge Graph Visualization</h1>
+            <p class="page-subtitle">Interactive visualization of content relationships, keywords, and competitive landscape</p>
+        </div>
+        
+        <div class="graph-section">
+            <div class="graph-sidebar">
+                <div class="sidebar-section">
+                    <h3 class="sidebar-title">Graph Types</h3>
+                    <div class="graph-type-selector">
+                        <button class="graph-type-button active" data-graph-type="content-knowledge">
+                            <span class="button-title">Content Knowledge</span>
+                            <span class="button-description">Content relationships and topic connections</span>
+                        </button>
+                        <button class="graph-type-button" data-graph-type="keyword-network">
+                            <span class="button-title">Keyword Network</span>
+                            <span class="button-description">Keyword relationships and semantic clusters</span>
+                        </button>
+                        <button class="graph-type-button" data-graph-type="competitor-landscape">
+                            <span class="button-title">Competitor Landscape</span>
+                            <span class="button-description">Competitive analysis and market positioning</span>
+                        </button>
+                        <button class="graph-type-button" data-graph-type="semantic-clusters">
+                            <span class="button-title">Semantic Clusters</span>
+                            <span class="button-description">Content clustered by semantic similarity</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="sidebar-section">
+                    <h3 class="sidebar-title">Graph Information</h3>
+                    <div class="info-panel">
+                        <h4>Instructions</h4>
+                        <p>Click on nodes to select them and view details. Use the controls above the graph to change layouts, search, and filter. Double-click to focus on a node.</p>
+                    </div>
+                    
+                    <div class="node-info" id="node-info-panel">
+                        <div class="node-info-header">
+                            <div class="node-info-icon" id="node-info-icon"></div>
+                            <div class="node-info-title" id="node-info-title">Node Title</div>
+                            <div class="node-info-type" id="node-info-type">Type</div>
+                        </div>
+                        <div class="node-info-details" id="node-info-details">
+                            <!-- Details will be populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="graph-container-wrapper">
+                <div id="knowledge-graph" style="width: 100%; height: 100%; position: relative;"></div>
+                <div class="loading-overlay" id="loading-overlay">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="theme-toggle">
+            <button id="theme-toggle-btn">🌙 Dark Mode</button>
+        </div>
+    </div>
+    
+    <!-- JavaScript -->
+    <script>
+        // Simple fallback if external library is not available
+        if (!window.GraphVisualization) {
+            console.log('GraphVisualization not loaded from external file, using inline fallback');
+        }
+    </script>
+    <script src="{{ url_for('static', path='/js/graph-visualization.js') }}" onerror="console.warn('Failed to load GraphVisualization library')"></script>
+    
+    <script>
+        // Application state
+        let currentGraph = null;
+        let currentGraphType = 'content-knowledge';
+        let currentTheme = 'light';
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+        
+        function initializeApp() {
+            // Initialize graph visualization
+            try {
+                if (typeof GraphVisualization !== 'undefined') {
+                    currentGraph = new GraphVisualization('knowledge-graph', {
+                        renderer: 'cytoscape',
+                        layout: 'cola',
+                        theme: currentTheme,
+                        interactive: true,
+                        showLabels: true,
+                        showLegend: true
+                    });
+                } else {
+                    console.warn('GraphVisualization library not available, using fallback');
+                    currentGraph = null;
+                }
+            } catch (error) {
+                console.error('Failed to initialize GraphVisualization:', error);
+                currentGraph = null;
+            }
+            
+            // Setup event listeners
+            setupEventListeners();
+            
+            // Load initial graph data
+            loadGraphData(currentGraphType);
+        }
+        
+        function setupEventListeners() {
+            // Graph type selector
+            document.querySelectorAll('.graph-type-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const graphType = this.dataset.graphType;
+                    selectGraphType(graphType);
+                });
+            });
+            
+            // Theme toggle
+            document.getElementById('theme-toggle-btn').addEventListener('click', function() {
+                toggleTheme();
+            });
+            
+            // Window resize
+            window.addEventListener('resize', function() {
+                if (currentGraph) {
+                    currentGraph.handleResize();
+                }
+            });
+        }
+        
+        function selectGraphType(graphType) {
+            if (graphType === currentGraphType) return;
+            
+            // Update UI
+            document.querySelectorAll('.graph-type-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-graph-type="${graphType}"]`).classList.add('active');
+            
+            // Update current type
+            currentGraphType = graphType;
+            
+            // Load new graph data
+            loadGraphData(graphType);
+        }
+        
+        async function loadGraphData(graphType) {
+            try {
+                showLoading();
+                
+                // Add timeout to prevent infinite loading
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+                
+                // Fetch graph data from API
+                const response = await fetch(`/api/graph/${graphType}`, {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                // Check if the response has the expected structure
+                if (!result.success || !result.graph) {
+                    throw new Error('Invalid response structure from API');
+                }
+                
+                const graphData = result.graph;
+                
+                // Validate graph data structure
+                if (!graphData.nodes || !Array.isArray(graphData.nodes)) {
+                    throw new Error('Invalid graph data: missing or invalid nodes');
+                }
+                
+                if (!graphData.edges || !Array.isArray(graphData.edges)) {
+                    throw new Error('Invalid graph data: missing or invalid edges');
+                }
+                
+                // Load data into visualization
+                if (currentGraph && typeof currentGraph.loadData === 'function') {
+                    await currentGraph.loadData(graphData);
+                } else {
+                    // Fallback: create simple visualization without external library
+                    createFallbackVisualization(graphData);
+                }
+                
+                // Update node info panel
+                updateGraphInfo(graphData);
+                
+                hideLoading();
+                
+            } catch (error) {
+                console.error('Error loading graph data:', error);
+                
+                let errorMessage = 'Failed to load graph data. ';
+                
+                if (error.name === 'AbortError') {
+                    errorMessage += 'Request timed out. Please try again.';
+                } else if (error.message.includes('HTTP error')) {
+                    errorMessage += 'Server error. Please try again later.';
+                } else {
+                    errorMessage += error.message || 'Please try again.';
+                }
+                
+                showError(errorMessage);
+                hideLoading();
+                
+                // Show fallback state with empty data
+                showFallbackState(graphType);
+            }
+        }
+        
+        function updateGraphInfo(graphData) {
+            const nodeInfoPanel = document.getElementById('node-info-panel');
+            const infoPanel = document.querySelector('.info-panel');
+            
+            // Update general info
+            infoPanel.innerHTML = `
+                <h4>Graph Statistics</h4>
+                <p>
+                    <strong>Nodes:</strong> ${graphData.node_count}<br>
+                    <strong>Edges:</strong> ${graphData.edge_count}<br>
+                    <strong>Density:</strong> ${(graphData.density * 100).toFixed(1)}%<br>
+                    <strong>Avg Degree:</strong> ${graphData.average_degree.toFixed(1)}
+                </p>
+            `;
+            
+            // Hide node info initially
+            nodeInfoPanel.classList.remove('active');
+        }
+        
+        function showNodeInfo(nodeData) {
+            const nodeInfoPanel = document.getElementById('node-info-panel');
+            const nodeInfoIcon = document.getElementById('node-info-icon');
+            const nodeInfoTitle = document.getElementById('node-info-title');
+            const nodeInfoType = document.getElementById('node-info-type');
+            const nodeInfoDetails = document.getElementById('node-info-details');
+            
+            // Update node info
+            nodeInfoIcon.style.backgroundColor = nodeData.color;
+            nodeInfoTitle.textContent = nodeData.label;
+            nodeInfoType.textContent = nodeData.type;
+            
+            // Build details
+            const details = [
+                { label: 'ID', value: nodeData.id },
+                { label: 'Degree', value: nodeData.degree || 0 },
+                { label: 'Size', value: nodeData.size }
+            ];
+            
+            // Add type-specific details
+            if (nodeData.properties) {
+                Object.entries(nodeData.properties).forEach(([key, value]) => {
+                    if (value !== null && value !== undefined) {
+                        details.push({ 
+                            label: key.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()), 
+                            value: value 
+                        });
+                    }
+                });
+            }
+            
+            nodeInfoDetails.innerHTML = details.map(detail => `
+                <div class="node-info-detail">
+                    <span class="label">${detail.label}:</span>
+                    <span class="value">${detail.value}</span>
+                </div>
+            `).join('');
+            
+            // Show panel
+            nodeInfoPanel.classList.add('active');
+        }
+        
+        function hideNodeInfo() {
+            const nodeInfoPanel = document.getElementById('node-info-panel');
+            nodeInfoPanel.classList.remove('active');
+        }
+        
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            
+            // Update theme toggle button
+            const toggleBtn = document.getElementById('theme-toggle-btn');
+            toggleBtn.textContent = currentTheme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode';
+            
+            // Update page theme
+            document.body.classList.toggle('theme-dark', currentTheme === 'dark');
+            
+            // Update graph theme
+            if (currentGraph) {
+                currentGraph.options.theme = currentTheme;
+                currentGraph.container.classList.remove('theme-light', 'theme-dark');
+                currentGraph.container.classList.add(`theme-${currentTheme}`);
+            }
+        }
+        
+        function showLoading() {
+            document.getElementById('loading-overlay').style.display = 'flex';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+        
+        function showError(message) {
+            const container = document.querySelector('.graph-container-wrapper');
+            const existingError = container.querySelector('.error-message');
+            
+            if (existingError) {
+                existingError.remove();
+            }
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            container.appendChild(errorDiv);
+            
+            // Remove error after 5 seconds
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+        
+        function showSuccess(message) {
+            const container = document.querySelector('.graph-container-wrapper');
+            const existingSuccess = container.querySelector('.success-message');
+            
+            if (existingSuccess) {
+                existingSuccess.remove();
+            }
+            
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            container.appendChild(successDiv);
+            
+            // Remove success after 3 seconds
+            setTimeout(() => {
+                successDiv.remove();
+            }, 3000);
+        }
+        
+        function createFallbackVisualization(graphData) {
+            const graphContainer = document.getElementById('knowledge-graph');
+            
+            // Clear existing content
+            graphContainer.innerHTML = '';
+            
+            // Create a simple HTML-based visualization
+            const fallbackHtml = `
+                <div style="padding: 20px; text-align: center;">
+                    <h3 style="color: #333; margin-bottom: 20px;">Graph Data Available</h3>
+                    <div style="background: #f5f5f5; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                        <p><strong>Nodes:</strong> ${graphData.nodes.length}</p>
+                        <p><strong>Edges:</strong> ${graphData.edges.length}</p>
+                        <p><strong>Graph Type:</strong> ${currentGraphType}</p>
+                    </div>
+                    <div style="text-align: left; max-width: 600px; margin: 0 auto;">
+                        <h4>Sample Nodes:</h4>
+                        <ul>
+                            ${graphData.nodes.slice(0, 5).map(node => 
+                                `<li><strong>${node.label}</strong> (${node.type})</li>`
+                            ).join('')}
+                        </ul>
+                        ${graphData.nodes.length > 5 ? '<p>... and more</p>' : ''}
+                    </div>
+                    <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 6px;">
+                        <p><strong>Note:</strong> Advanced graph visualization is loading. This fallback view shows that data is available.</p>
+                    </div>
+                </div>
+            `;
+            
+            graphContainer.innerHTML = fallbackHtml;
+        }
+        
+        function showFallbackState(graphType) {
+            const graphContainer = document.getElementById('knowledge-graph');
+            
+            // Clear existing content
+            graphContainer.innerHTML = '';
+            
+            // Create a "no data" state
+            const fallbackHtml = `
+                <div style="padding: 40px; text-align: center; color: #666;">
+                    <i class="fas fa-project-diagram" style="font-size: 48px; margin-bottom: 20px; color: #ccc;"></i>
+                    <h3 style="margin-bottom: 16px;">No Graph Data Available</h3>
+                    <p style="margin-bottom: 20px;">Unable to load graph data for "${graphType}". This might be due to:</p>
+                    <ul style="text-align: left; display: inline-block; margin: 0 auto;">
+                        <li>Network connectivity issues</li>
+                        <li>Server unavailability</li>
+                        <li>No data available for this graph type</li>
+                    </ul>
+                    <div style="margin-top: 30px;">
+                        <button onclick="loadGraphData('${graphType}')" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+                            Try Again
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            graphContainer.innerHTML = fallbackHtml;
+        }
+        
+        function getAuthToken() {
+            // In a real application, this would get the token from secure storage
+            return localStorage.getItem('authToken') || 'demo-token';
+        }
+        
+        // Global event handlers for graph interactions
+        window.addEventListener('graphNodeSelected', function(event) {
+            showNodeInfo(event.detail);
+        });
+        
+        window.addEventListener('graphNodeDeselected', function(event) {
+            hideNodeInfo();
+        });
+        
+        window.addEventListener('graphError', function(event) {
+            showError(event.detail.message);
+        });
+        
+        window.addEventListener('graphLoaded', function(event) {
+            showSuccess('Graph loaded successfully');
+        });
+        
+        // Demo data for development
+        const demoData = {
+            'content-knowledge': {
+                nodes: [
+                    { id: '1', label: 'SEO Best Practices', type: 'content', size: 60, color: '#4CAF50' },
+                    { id: '2', label: 'Keyword Research', type: 'content', size: 50, color: '#4CAF50' },
+                    { id: '3', label: 'Content Marketing', type: 'content', size: 55, color: '#4CAF50' },
+                    { id: '4', label: 'Link Building', type: 'content', size: 45, color: '#4CAF50' },
+                    { id: '5', label: 'Technical SEO', type: 'content', size: 50, color: '#4CAF50' }
+                ],
+                edges: [
+                    { id: 'e1', source: '1', target: '2', type: 'relates_to', weight: 2 },
+                    { id: 'e2', source: '1', target: '3', type: 'relates_to', weight: 3 },
+                    { id: 'e3', source: '2', target: '3', type: 'relates_to', weight: 2 },
+                    { id: 'e4', source: '3', target: '4', type: 'relates_to', weight: 1 },
+                    { id: 'e5', source: '1', target: '5', type: 'relates_to', weight: 2 }
+                ],
+                node_count: 5,
+                edge_count: 5,
+                density: 0.4,
+                average_degree: 2.0
+            },
+            'keyword-network': {
+                nodes: [
+                    { id: '1', label: 'SEO', type: 'keyword', size: 70, color: '#2196F3' },
+                    { id: '2', label: 'Content Marketing', type: 'keyword', size: 60, color: '#2196F3' },
+                    { id: '3', label: 'Digital Marketing', type: 'keyword', size: 65, color: '#2196F3' },
+                    { id: '4', label: 'Link Building', type: 'keyword', size: 40, color: '#2196F3' },
+                    { id: '5', label: 'Keyword Research', type: 'keyword', size: 50, color: '#2196F3' }
+                ],
+                edges: [
+                    { id: 'e1', source: '1', target: '2', type: 'similar_to', weight: 3 },
+                    { id: 'e2', source: '2', target: '3', type: 'similar_to', weight: 2 },
+                    { id: 'e3', source: '1', target: '4', type: 'relates_to', weight: 1 },
+                    { id: 'e4', source: '1', target: '5', type: 'relates_to', weight: 2 },
+                    { id: 'e5', source: '3', target: '2', type: 'relates_to', weight: 1 }
+                ],
+                node_count: 5,
+                edge_count: 5,
+                density: 0.4,
+                average_degree: 2.0
+            },
+            'competitor-landscape': {
+                nodes: [
+                    { id: '1', label: 'competitor1.com', type: 'competitor', size: 60, color: '#F44336' },
+                    { id: '2', label: 'competitor2.com', type: 'competitor', size: 55, color: '#F44336' },
+                    { id: '3', label: 'SEO Tools', type: 'keyword', size: 50, color: '#2196F3' },
+                    { id: '4', label: 'Marketing Software', type: 'keyword', size: 45, color: '#2196F3' },
+                    { id: '5', label: 'Analytics', type: 'keyword', size: 40, color: '#2196F3' }
+                ],
+                edges: [
+                    { id: 'e1', source: '1', target: '3', type: 'targets_keyword', weight: 2 },
+                    { id: 'e2', source: '2', target: '3', type: 'targets_keyword', weight: 3 },
+                    { id: 'e3', source: '1', target: '4', type: 'targets_keyword', weight: 1 },
+                    { id: 'e4', source: '2', target: '5', type: 'targets_keyword', weight: 2 },
+                    { id: 'e5', source: '1', target: '2', type: 'competes_with', weight: 1 }
+                ],
+                node_count: 5,
+                edge_count: 5,
+                density: 0.4,
+                average_degree: 2.0
+            },
+            'semantic-clusters': {
+                nodes: [
+                    { id: '1', label: 'Article 1', type: 'content', size: 50, color: '#E91E63' },
+                    { id: '2', label: 'Article 2', type: 'content', size: 50, color: '#E91E63' },
+                    { id: '3', label: 'Article 3', type: 'content', size: 50, color: '#9C27B0' },
+                    { id: '4', label: 'Article 4', type: 'content', size: 50, color: '#9C27B0' },
+                    { id: '5', label: 'Article 5', type: 'content', size: 50, color: '#673AB7' }
+                ],
+                edges: [
+                    { id: 'e1', source: '1', target: '2', type: 'semantic_similarity', weight: 3 },
+                    { id: 'e2', source: '3', target: '4', type: 'semantic_similarity', weight: 2 },
+                    { id: 'e3', source: '1', target: '3', type: 'semantic_similarity', weight: 1 },
+                    { id: 'e4', source: '2', target: '5', type: 'semantic_similarity', weight: 1 }
+                ],
+                node_count: 5,
+                edge_count: 4,
+                density: 0.4,
+                average_degree: 1.6
+            }
+        };
+        
+        // Demo override removed - now using real API endpoints
+    </script>
+</body>
+</html>

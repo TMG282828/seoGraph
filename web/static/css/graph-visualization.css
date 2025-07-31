@@ -1,0 +1,719 @@
+/**
+ * Graph Visualization Styles for the SEO Content Knowledge Graph System.
+ * 
+ * This stylesheet provides styling for interactive graph visualizations
+ * with support for light and dark themes.
+ */
+
+/* =============================================================================
+   Base Graph Container
+   ============================================================================= */
+
+.graph-visualization {
+    width: 100%;
+    height: 100%;
+    background: var(--bg-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    position: relative;
+}
+
+.graph-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* =============================================================================
+   Theme Variables
+   ============================================================================= */
+
+.graph-visualization.theme-light {
+    --bg-color: #ffffff;
+    --text-color: #333333;
+    --border-color: #e0e0e0;
+    --control-bg: #f8f9fa;
+    --control-hover: #e9ecef;
+    --button-bg: #007bff;
+    --button-hover: #0056b3;
+    --sidebar-bg: #f8f9fa;
+    --tooltip-bg: #ffffff;
+    --tooltip-border: #cccccc;
+    --error-color: #dc3545;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+}
+
+.graph-visualization.theme-dark {
+    --bg-color: #1a1a1a;
+    --text-color: #ffffff;
+    --border-color: #333333;
+    --control-bg: #2d2d2d;
+    --control-hover: #404040;
+    --button-bg: #0d6efd;
+    --button-hover: #0b5ed7;
+    --sidebar-bg: #2d2d2d;
+    --tooltip-bg: #333333;
+    --tooltip-border: #555555;
+    --error-color: #dc3545;
+    --success-color: #198754;
+    --warning-color: #ffc107;
+    --info-color: #0dcaf0;
+}
+
+/* =============================================================================
+   Header Section
+   ============================================================================= */
+
+.graph-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: var(--control-bg);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.graph-title h3 {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.graph-controls-group {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.control-group label {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.control-select,
+.control-input {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease;
+}
+
+.control-select:focus,
+.control-input:focus {
+    outline: none;
+    border-color: var(--button-bg);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.control-input::placeholder {
+    color: var(--text-color);
+    opacity: 0.6;
+}
+
+.control-button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    background: var(--button-bg);
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.control-button:hover {
+    background: var(--button-hover);
+}
+
+.control-button:active {
+    transform: translateY(1px);
+}
+
+.filter-checkboxes {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.filter-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.filter-checkbox input[type="checkbox"] {
+    margin: 0;
+    accent-color: var(--button-bg);
+}
+
+/* =============================================================================
+   Content Section
+   ============================================================================= */
+
+.graph-content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.graph-sidebar {
+    width: 250px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    padding: 16px;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.graph-main {
+    flex: 1;
+    position: relative;
+    background: var(--bg-color);
+    overflow: hidden;
+}
+
+/* =============================================================================
+   Footer Section
+   ============================================================================= */
+
+.graph-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: var(--control-bg);
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.graph-stats {
+    display: flex;
+    gap: 16px;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.graph-stats span {
+    font-weight: 500;
+}
+
+.graph-legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.legend-title {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.legend-items {
+    display: flex;
+    gap: 12px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+}
+
+.legend-label {
+    color: var(--text-color);
+    font-size: 0.85rem;
+}
+
+/* =============================================================================
+   Tooltip Styles
+   ============================================================================= */
+
+.graph-tooltip {
+    position: absolute;
+    background: var(--tooltip-bg);
+    border: 1px solid var(--tooltip-border);
+    border-radius: 6px;
+    padding: 12px;
+    max-width: 300px;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    display: none;
+    pointer-events: none;
+}
+
+.tooltip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tooltip-header strong {
+    font-weight: 600;
+}
+
+.tooltip-type {
+    background: var(--button-bg);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.tooltip-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tooltip-label {
+    font-weight: 500;
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.tooltip-value {
+    color: var(--text-color);
+    text-align: right;
+    max-width: 200px;
+    word-wrap: break-word;
+}
+
+/* =============================================================================
+   Error and Loading States
+   ============================================================================= */
+
+.graph-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--error-color);
+    text-align: center;
+    padding: 40px;
+}
+
+.graph-error h4 {
+    margin: 0 0 16px 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.graph-error p {
+    margin: 0;
+    font-size: 1rem;
+    opacity: 0.8;
+    max-width: 400px;
+}
+
+.graph-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-color);
+    text-align: center;
+    padding: 40px;
+}
+
+.graph-loading .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border-color);
+    border-top: 4px solid var(--button-bg);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* =============================================================================
+   D3 Specific Styles
+   ============================================================================= */
+
+.graph-main svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.graph-main .link {
+    stroke-linecap: round;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.graph-main .link:hover {
+    stroke-width: 4px !important;
+    stroke-opacity: 1 !important;
+}
+
+.graph-main .node {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.graph-main .node:hover {
+    stroke-width: 3px !important;
+    filter: brightness(1.1);
+}
+
+.graph-main .node.selected {
+    stroke: #FFD700 !important;
+    stroke-width: 4px !important;
+}
+
+.graph-main .node.filtered {
+    opacity: 0.3;
+}
+
+.graph-main .label {
+    pointer-events: none;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    transition: all 0.2s ease;
+}
+
+.graph-main .label.filtered {
+    opacity: 0.3;
+}
+
+/* =============================================================================
+   Cytoscape Specific Styles
+   ============================================================================= */
+
+.graph-main .cy-container {
+    background: var(--bg-color);
+}
+
+/* =============================================================================
+   Responsive Design
+   ============================================================================= */
+
+@media (max-width: 1024px) {
+    .graph-sidebar {
+        width: 200px;
+    }
+    
+    .graph-controls-group {
+        gap: 12px;
+    }
+    
+    .control-group {
+        gap: 6px;
+    }
+    
+    .legend-items {
+        gap: 8px;
+    }
+}
+
+@media (max-width: 768px) {
+    .graph-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 12px 16px;
+    }
+    
+    .graph-title {
+        text-align: center;
+    }
+    
+    .graph-controls-group {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .control-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .control-group label {
+        font-size: 0.85rem;
+    }
+    
+    .graph-sidebar {
+        display: none;
+    }
+    
+    .graph-footer {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px 16px;
+    }
+    
+    .graph-stats {
+        justify-content: center;
+    }
+    
+    .graph-legend {
+        justify-content: center;
+    }
+    
+    .legend-items {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .graph-tooltip {
+        max-width: 250px;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .graph-header {
+        padding: 8px 12px;
+    }
+    
+    .graph-title h3 {
+        font-size: 1.1rem;
+    }
+    
+    .graph-controls-group {
+        gap: 6px;
+    }
+    
+    .control-select,
+    .control-input,
+    .control-button {
+        font-size: 0.85rem;
+        padding: 4px 8px;
+    }
+    
+    .graph-footer {
+        padding: 8px 12px;
+    }
+    
+    .graph-stats {
+        gap: 12px;
+        font-size: 0.85rem;
+    }
+    
+    .legend-items {
+        gap: 8px;
+    }
+    
+    .legend-label {
+        font-size: 0.8rem;
+    }
+    
+    .graph-tooltip {
+        max-width: 200px;
+        padding: 8px;
+        font-size: 0.75rem;
+    }
+}
+
+/* =============================================================================
+   Fullscreen Mode
+   ============================================================================= */
+
+.graph-visualization.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.graph-visualization.fullscreen .graph-sidebar {
+    display: none;
+}
+
+/* =============================================================================
+   Print Styles
+   ============================================================================= */
+
+@media print {
+    .graph-visualization {
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+    
+    .graph-header,
+    .graph-footer {
+        display: none;
+    }
+    
+    .graph-sidebar {
+        display: none;
+    }
+    
+    .graph-main {
+        width: 100%;
+        height: 100%;
+    }
+    
+    .graph-tooltip {
+        display: none !important;
+    }
+}
+
+/* =============================================================================
+   Accessibility
+   ============================================================================= */
+
+.graph-visualization:focus-within {
+    outline: 2px solid var(--button-bg);
+    outline-offset: 2px;
+}
+
+.control-button:focus,
+.control-select:focus,
+.control-input:focus {
+    outline: 2px solid var(--button-bg);
+    outline-offset: 2px;
+}
+
+.filter-checkbox:focus-within {
+    outline: 2px solid var(--button-bg);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+    .graph-visualization *,
+    .graph-visualization *::before,
+    .graph-visualization *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .graph-visualization.theme-light {
+        --bg-color: #ffffff;
+        --text-color: #000000;
+        --border-color: #000000;
+        --control-bg: #f0f0f0;
+        --button-bg: #0000ff;
+        --button-hover: #000080;
+    }
+    
+    .graph-visualization.theme-dark {
+        --bg-color: #000000;
+        --text-color: #ffffff;
+        --border-color: #ffffff;
+        --control-bg: #333333;
+        --button-bg: #00ffff;
+        --button-hover: #00cccc;
+    }
+}
+
+/* =============================================================================
+   Animation Classes
+   ============================================================================= */
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.fade-out {
+    animation: fadeOut 0.3s ease-in-out;
+}
+
+.slide-in {
+    animation: slideIn 0.3s ease-in-out;
+}
+
+.slide-out {
+    animation: slideOut 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes slideIn {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes slideOut {
+    from { transform: translateX(0); }
+    to { transform: translateX(-100%); }
+}
+
+/* =============================================================================
+   Custom Scrollbar
+   ============================================================================= */
+
+.graph-sidebar::-webkit-scrollbar {
+    width: 8px;
+}
+
+.graph-sidebar::-webkit-scrollbar-track {
+    background: var(--control-bg);
+}
+
+.graph-sidebar::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.graph-sidebar::-webkit-scrollbar-thumb:hover {
+    background: var(--text-color);
+    opacity: 0.7;
+}

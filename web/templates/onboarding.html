@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organization Setup - SEO Content Knowledge Graph</title>
+    <link href="{{ url_for('static', path='/css/base.css') }}" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #f6f8fc 0%, #e9f0ff 100%);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .onboarding-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .onboarding-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            padding: 2.5rem 2rem;
+            color: white;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .onboarding-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: url('data:image/svg+xml,<svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><g fill="%23ffffff" fill-opacity="0.1"><circle cx="30" cy="30" r="2"/></g></svg>') repeat;
+            animation: float 25s infinite linear;
+            pointer-events: none;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            100% { transform: translate(-60px, -60px) rotate(360deg); }
+        }
+
+        .onboarding-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .onboarding-header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        .onboarding-content {
+            padding: 3rem;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3rem;
+            padding: 0 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            position: relative;
+            flex-direction: column;
+            flex: 1;
+        }
+        
+        .step:not(:last-child)::after {
+            content: '';
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, #e2e8f0 0%, #e2e8f0 100%);
+            position: absolute;
+            left: 60px;
+            right: -60px;
+            top: 20px;
+            z-index: -1;
+            border-radius: 2px;
+            transition: all 0.6s ease;
+        }
+        
+        .step.active::after,
+        .step.completed::after {
+            background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+        }
+        
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-bottom: 8px;
+            position: relative;
+            transition: all 0.4s ease;
+            border: 3px solid #e2e8f0;
+        }
+        
+        .step.active .step-circle {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border-color: #4f46e5;
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);
+        }
+        
+        .step.completed .step-circle {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border-color: #10b981;
+        }
+        
+        .step.completed .step-circle::before {
+            content: '✓';
+            font-weight: bold;
+        }
+        
+        .step-label {
+            font-size: 0.875rem;
+            color: #64748b;
+            font-weight: 500;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .step.active .step-label {
+            color: #4f46e5;
+            font-weight: 600;
+        }
+        
+        .step.completed .step-label {
+            color: #10b981;
+            font-weight: 600;
+        }
+        
+        .onboarding-step {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        .onboarding-step.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .step-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .step-title-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+        }
+        
+        .step-description {
+            color: #64748b;
+            margin-bottom: 2.5rem;
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-grid.single {
+            grid-template-columns: 1fr;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: #fafafa;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .form-group input:hover,
+        .form-group select:hover,
+        .form-group textarea:hover {
+            border-color: #d1d5db;
+        }
+
+        .form-help {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+        
+        .brand-voice-section {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        
+        .brand-voice-section h4 {
+            margin-bottom: 1rem;
+            color: #1e293b;
+        }
+        
+        .toggle-group {
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .toggle-option {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            font-size: 0.875rem;
+        }
+        
+        .toggle-option.active {
+            background: #3182ce;
+            color: white;
+        }
+        
+        .content-sources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .source-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .source-card:hover {
+            border-color: #3182ce;
+            background: #f7fafc;
+        }
+        
+        .source-card.selected {
+            border-color: #3182ce;
+            background: #ebf8ff;
+        }
+        
+        .source-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 1rem;
+            background: #e2e8f0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .source-card.selected .source-icon {
+            background: #3182ce;
+            color: white;
+        }
+        
+        .step-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 3rem;
+            padding: 2rem 0 0;
+            border-top: 1px solid #f1f5f9;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 0.875rem 2rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.2);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #6b7280;
+            border: 2px solid #e5e7eb;
+            padding: 0.875rem 2rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            border-color: #d1d5db;
+            background: #f9fafb;
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary:disabled {
+            background: #f3f4f6;
+            border-color: #e5e7eb;
+            color: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .success-animation {
+            text-align: center;
+            padding: 3rem 1rem;
+        }
+        
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: #10b981;
+            border-radius: 50%;
+            margin: 0 auto 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+        
+        .alert.error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+        }
+        
+        .alert.success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #16a34a;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem 0.5rem;
+            }
+
+            .onboarding-container {
+                border-radius: 16px;
+            }
+
+            .onboarding-header {
+                padding: 2rem 1.5rem;
+            }
+
+            .onboarding-header h1 {
+                font-size: 1.5rem;
+            }
+
+            .onboarding-content {
+                padding: 2rem 1.5rem;
+            }
+
+            .step-indicator {
+                margin-bottom: 2rem;
+                flex-wrap: wrap;
+                gap: 1rem;
+            }
+
+            .step:not(:last-child)::after {
+                display: none;
+            }
+
+            .step-title {
+                font-size: 1.5rem;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .content-sources-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .step-actions {
+                flex-direction: column-reverse;
+                gap: 1rem;
+            }
+
+            .btn-primary,
+            .btn-secondary {
+                width: 100%;
+                padding: 1rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .onboarding-header h1 {
+                font-size: 1.25rem;
+            }
+
+            .onboarding-header p {
+                font-size: 1rem;
+            }
+
+            .step-title {
+                font-size: 1.25rem;
+            }
+
+            .step-title-icon {
+                width: 28px;
+                height: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="onboarding-container" x-data="onboardingFlow()" x-init="init()">
+        <!-- Header -->
+        <div class="onboarding-header">
+            <h1>Welcome to SEO Content Knowledge Graph</h1>
+            <p>Let's set up your organization and configure your AI-powered content strategy in just a few minutes</p>
+        </div>
+
+        <div class="onboarding-content">
+            <!-- Step Indicator -->
+        <div class="step-indicator">
+            <div class="step" :class="{ active: currentStep === 1, completed: currentStep > 1 }">
+                <div class="step-circle">1</div>
+                <div class="step-label">Organization</div>
+            </div>
+            <div class="step" :class="{ active: currentStep === 2, completed: currentStep > 2 }">
+                <div class="step-circle">2</div>
+                <div class="step-label">Brand Voice</div>
+            </div>
+            <div class="step" :class="{ active: currentStep === 3, completed: currentStep > 3 }">
+                <div class="step-circle">3</div>
+                <div class="step-label">Content Sources</div>
+            </div>
+            <div class="step" :class="{ active: currentStep === 4, completed: currentStep > 4 }">
+                <div class="step-circle">4</div>
+                <div class="step-label">Complete</div>
+            </div>
+        </div>
+
+        <!-- Error Alert -->
+        <div x-show="error" class="alert error">
+            <div x-text="error"></div>
+            <div x-show="showClearSession" class="mt-3">
+                <p class="text-sm text-gray-600 mb-2">If you're experiencing authentication issues, try clearing your session and logging in again:</p>
+                <button type="button" 
+                        @click="clearDemoSession()" 
+                        class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                    🔄 Clear Session & Login Again
+                </button>
+            </div>
+        </div>
+        
+        <!-- Success Alert -->
+        <div x-show="success" class="alert success" x-text="success"></div>
+
+        <!-- Step 1: Organization Details -->
+        <div class="onboarding-step" :class="{ active: currentStep === 1 }">
+            <div class="step-title">
+                <div class="step-title-icon">🏢</div>
+                Organization Details
+            </div>
+            <div class="step-description">
+                Let's start by setting up your organization profile. This information helps us create a tailored SEO Content Knowledge Graph system that matches your business needs and industry context.
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="orgName">Organization Name</label>
+                    <input type="text" id="orgName" x-model="formData.orgName" placeholder="e.g., Acme Corporation" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="orgSlug">URL Slug</label>
+                    <input type="text" id="orgSlug" x-model="formData.orgSlug" placeholder="e.g., acme-corp" required>
+                    <div class="form-help">This will be used in your workspace URL</div>
+                </div>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="adminName">Admin Name</label>
+                    <input type="text" id="adminName" x-model="formData.adminName" placeholder="Your full name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="adminEmail">Admin Email</label>
+                    <input type="email" id="adminEmail" x-model="formData.adminEmail" placeholder="admin@example.com" readonly style="background-color: #f5f5f5;">
+                    <small style="color: #666; font-size: 0.85em;">This is your authenticated email address</small>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="industry">Industry</label>
+                <select id="industry" x-model="formData.industry" required>
+                    <option value="">Select your industry</option>
+                    <option value="technology">Technology</option>
+                    <option value="healthcare">Healthcare</option>
+                    <option value="finance">Finance</option>
+                    <option value="ecommerce">E-commerce</option>
+                    <option value="education">Education</option>
+                    <option value="real-estate">Real Estate</option>
+                    <option value="marketing">Marketing</option>
+                    <option value="consulting">Consulting</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Step 2: Brand Voice Configuration -->
+        <div class="onboarding-step" :class="{ active: currentStep === 2 }">
+            <div class="step-title">
+                <div class="step-title-icon">🎯</div>
+                Brand Voice Configuration
+            </div>
+            <div class="step-description">
+                Configure your brand voice to ensure all AI-generated content aligns perfectly with your organization's tone, style, and messaging guidelines.
+            </div>
+            
+            <div class="brand-voice-section">
+                <h4>Tone</h4>
+                <div class="toggle-group">
+                    <button type="button" class="toggle-option" 
+                            :class="{ active: formData.brandVoice.tone === 'professional' }"
+                            @click="formData.brandVoice.tone = 'professional'">Professional</button>
+                    <button type="button" class="toggle-option" 
+                            :class="{ active: formData.brandVoice.tone === 'friendly' }"
+                            @click="formData.brandVoice.tone = 'friendly'">Friendly</button>
+                    <button type="button" class="toggle-option" 
+                            :class="{ active: formData.brandVoice.tone === 'authoritative' }"
+                            @click="formData.brandVoice.tone = 'authoritative'">Authoritative</button>
+                    <button type="button" class="toggle-option" 
+                            :class="{ active: formData.brandVoice.tone === 'conversational' }"
+                            @click="formData.brandVoice.tone = 'conversational'">Conversational</button>
+                </div>
+            </div>
+            
+            <div class="brand-voice-section">
+                <h4>Formality Level</h4>
+                <div class="toggle-group">
+                    <button type="button" class="toggle-option" 
+                            :class="{ active: formData.brandVoice.formality === 'formal' }"
+                            @click="formData.brandVoice.formality = 'formal'">Formal</button>
+                    <button type="button" class="toggle-option" 
+                            :class="{ active: formData.brandVoice.formality === 'semi-formal' }"
+                            @click="formData.brandVoice.formality = 'semi-formal'">Semi-formal</button>
+                    <button type="button" class="toggle-option" 
+                            :class="{ active: formData.brandVoice.formality === 'casual' }"
+                            @click="formData.brandVoice.formality = 'casual'">Casual</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="industryContext">Industry Context</label>
+                <textarea id="industryContext" x-model="formData.brandVoice.industryContext" 
+                         placeholder="Describe your industry-specific terminology, audience, and context..."
+                         rows="3"></textarea>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="prohibitedTerms">Prohibited Terms</label>
+                    <input type="text" id="prohibitedTerms" x-model="prohibitedTermsInput" 
+                           placeholder="Enter terms separated by commas">
+                    <div class="form-help">Words or phrases to avoid in content</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="preferredPhrases">Preferred Phrases</label>
+                    <input type="text" id="preferredPhrases" x-model="preferredPhrasesInput" 
+                           placeholder="Enter phrases separated by commas">
+                    <div class="form-help">Phrases to prioritize in content</div>
+                </div>
+            </div>
+            
+            <div class="brand-voice-section">
+                <h4>SEO Preferences</h4>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="keywordDensity">Target Keyword Density (%)</label>
+                        <input type="number" id="keywordDensity" x-model="formData.brandVoice.seoPreferences.targetKeywordDensity" 
+                               min="0.5" max="5" step="0.1" value="1.5">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="contentLength">Content Length Preference</label>
+                        <select id="contentLength" x-model="formData.brandVoice.seoPreferences.contentLengthPreference">
+                            <option value="short">Short (500-800 words)</option>
+                            <option value="medium">Medium (800-1500 words)</option>
+                            <option value="long">Long (1500+ words)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Content Sources -->
+        <div class="onboarding-step" :class="{ active: currentStep === 3 }">
+            <div class="step-title">
+                <div class="step-title-icon">🔗</div>
+                Content Sources
+            </div>
+            <div class="step-description">
+                Connect your content sources to automatically build a comprehensive knowledge graph. Don't worry - you can add, remove, or configure additional sources anytime after setup.
+            </div>
+            
+            <div class="content-sources-grid">
+                <div class="source-card" 
+                     :class="{ selected: selectedSources.includes('website') }"
+                     @click="toggleSource('website')">
+                    <div class="source-icon">🌐</div>
+                    <h4>Website</h4>
+                    <p>Crawl and analyze your existing website content</p>
+                </div>
+                
+                <div class="source-card" 
+                     :class="{ selected: selectedSources.includes('gdrive') }"
+                     @click="toggleSource('gdrive')">
+                    <div class="source-icon">📁</div>
+                    <h4>Google Drive</h4>
+                    <p>Import documents and files from Google Drive</p>
+                </div>
+                
+                <div class="source-card" 
+                     :class="{ selected: selectedSources.includes('cms') }"
+                     @click="toggleSource('cms')">
+                    <div class="source-icon">📝</div>
+                    <h4>CMS</h4>
+                    <p>Connect to your content management system</p>
+                </div>
+                
+                <div class="source-card" 
+                     :class="{ selected: selectedSources.includes('rss') }"
+                     @click="toggleSource('rss')">
+                    <div class="source-icon">📡</div>
+                    <h4>RSS Feeds</h4>
+                    <p>Monitor industry RSS feeds and news sources</p>
+                </div>
+                
+                <div class="source-card" 
+                     :class="{ selected: selectedSources.includes('upload') }"
+                     @click="toggleSource('upload')">
+                    <div class="source-icon">⬆️</div>
+                    <h4>File Upload</h4>
+                    <p>Manually upload documents and content files</p>
+                </div>
+                
+                <div class="source-card" 
+                     :class="{ selected: selectedSources.includes('competitor') }"
+                     @click="toggleSource('competitor')">
+                    <div class="source-icon">🔍</div>
+                    <h4>Competitor Analysis</h4>
+                    <p>Analyze competitor content and strategies</p>
+                </div>
+            </div>
+            
+            <div x-show="selectedSources.length > 0" class="brand-voice-section">
+                <h4>Source Configuration</h4>
+                <div x-show="selectedSources.includes('website')" class="form-group">
+                    <label for="websiteUrl">Website URL</label>
+                    <input type="url" id="websiteUrl" x-model="sourceConfigs.website.url" 
+                           placeholder="https://example.com">
+                </div>
+                
+                <div x-show="selectedSources.includes('cms')" class="form-group">
+                    <label for="cmsType">CMS Type</label>
+                    <select id="cmsType" x-model="sourceConfigs.cms.type">
+                        <option value="wordpress">WordPress</option>
+                        <option value="drupal">Drupal</option>
+                        <option value="contentful">Contentful</option>
+                        <option value="strapi">Strapi</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Completion -->
+        <div class="onboarding-step" :class="{ active: currentStep === 4 }">
+            <div class="success-animation">
+                <div class="success-icon">✓</div>
+                <div class="step-title">
+                    <div class="step-title-icon">🎉</div>
+                    Setup Complete!
+                </div>
+                <div class="step-description">
+                    Congratulations! Your SEO Content Knowledge Graph system is now configured and ready to transform your content strategy. We're initializing your workspace with your selected settings.
+                </div>
+                
+                <div x-show="loading" class="loading-spinner" style="margin: 2rem auto;"></div>
+                
+                <div x-show="!loading">
+                    <button type="button" class="btn-primary" @click="goToDashboard()">
+                        Go to Dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="step-actions" x-show="currentStep < 4">
+            <button type="button" class="btn-secondary" 
+                    @click="previousStep()" 
+                    :disabled="currentStep === 1">
+                ← Previous
+            </button>
+            
+            <button type="button" class="btn-primary" 
+                    @click="nextStep()"
+                    :disabled="!canProceed()">
+                <span x-show="currentStep < 3">Next →</span>
+                <span x-show="currentStep === 3">🚀 Complete Setup</span>
+            </button>
+        </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <!-- Alpine.js is loaded above -->
+    <script>
+        function onboardingFlow() {
+            return {
+                currentStep: 1,
+                loading: false,
+                error: null,
+                success: null,
+                showClearSession: false,
+                
+                formData: {
+                    orgName: '',
+                    orgSlug: '',
+                    adminName: '',
+                    adminEmail: '',
+                    industry: '',
+                    brandVoice: {
+                        tone: 'professional',
+                        formality: 'semi-formal',
+                        industryContext: '',
+                        prohibitedTerms: [],
+                        preferredPhrases: [],
+                        seoPreferences: {
+                            targetKeywordDensity: 1.5,
+                            contentLengthPreference: 'medium',
+                            internalLinkingStyle: 'contextual'
+                        }
+                    }
+                },
+                
+                selectedSources: [],
+                sourceConfigs: {
+                    website: { url: '' },
+                    cms: { type: 'wordpress' },
+                    gdrive: {},
+                    rss: { feeds: [] },
+                    competitor: { urls: [] }
+                },
+                
+                prohibitedTermsInput: '',
+                preferredPhrasesInput: '',
+                
+                async init() {
+                    // Auto-populate admin email from server API
+                    await this.populateUserInfo();
+                },
+                
+                async populateUserInfo() {
+                    // Get user info from server API instead of parsing JWT token
+                    try {
+                        const response = await fetch('/api/auth/me', {
+                            method: 'GET',
+                            credentials: 'include', // Include cookies for authentication
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const userInfo = await response.json();
+                            
+                            if (userInfo.email) {
+                                this.formData.adminEmail = userInfo.email;
+                                console.log('Auto-populated admin email:', userInfo.email);
+                            }
+                            
+                            if (userInfo.display_name) {
+                                this.formData.adminName = userInfo.display_name;
+                                console.log('Auto-populated admin name:', userInfo.display_name);
+                            }
+                        } else {
+                            console.warn('Could not fetch user info from server:', response.status);
+                            // Clear the placeholder if we can't get user info
+                            this.formData.adminEmail = '';
+                        }
+                    } catch (e) {
+                        console.warn('Error fetching user info:', e);
+                        // Clear the placeholder if there's an error
+                        this.formData.adminEmail = '';
+                    }
+                },
+                
+                
+                nextStep() {
+                    if (this.currentStep === 3) {
+                        this.completeOnboarding();
+                    } else {
+                        this.currentStep++;
+                    }
+                },
+                
+                previousStep() {
+                    if (this.currentStep > 1) {
+                        this.currentStep--;
+                    }
+                },
+                
+                canProceed() {
+                    switch (this.currentStep) {
+                        case 1:
+                            return this.formData.orgName && this.formData.orgSlug && 
+                                   this.formData.adminName && this.formData.adminEmail && 
+                                   this.formData.industry;
+                        case 2:
+                            return true; // Brand voice has defaults
+                        case 3:
+                            return this.selectedSources.length > 0;
+                        default:
+                            return true;
+                    }
+                },
+                
+                toggleSource(source) {
+                    const index = this.selectedSources.indexOf(source);
+                    if (index > -1) {
+                        this.selectedSources.splice(index, 1);
+                    } else {
+                        this.selectedSources.push(source);
+                    }
+                },
+                
+                async completeOnboarding() {
+                    this.loading = true;
+                    this.error = null;
+                    
+                    try {
+                        // Process prohibited terms and preferred phrases
+                        if (this.prohibitedTermsInput) {
+                            this.formData.brandVoice.prohibitedTerms = 
+                                this.prohibitedTermsInput.split(',').map(term => term.trim());
+                        }
+                        
+                        if (this.preferredPhrasesInput) {
+                            this.formData.brandVoice.preferredPhrases = 
+                                this.preferredPhrasesInput.split(',').map(phrase => phrase.trim());
+                        }
+                        
+                        // Create organization
+                        const response = await fetch('/api/organizations', {
+                            method: 'POST',
+                            credentials: 'include', // Include cookies for authentication
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                ...this.formData,
+                                selectedSources: this.selectedSources,
+                                sourceConfigs: this.sourceConfigs
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Failed to create organization');
+                        }
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            this.currentStep = 4;
+                            this.success = 'Organization created successfully!';
+                            
+                            // Store organization ID
+                            if (result.organization_id) {
+                                localStorage.setItem('organizationId', result.organization_id);
+                            }
+                            
+                            // Auto-redirect to dashboard after short delay
+                            setTimeout(() => {
+                                if (result.redirect) {
+                                    window.location.href = result.redirect;
+                                } else {
+                                    window.location.href = '/dashboard';
+                                }
+                            }, 2000);
+                        } else {
+                            throw new Error(result.error || 'Unknown error occurred');
+                        }
+                        
+                    } catch (error) {
+                        this.error = error.message;
+                        console.error('Onboarding error:', error);
+                        
+                        // If it's an authentication error, show clear session option
+                        if (error.message.includes('Failed to create organization') || 
+                            error.message.includes('unauthorized') || 
+                            error.message.includes('authentication')) {
+                            this.showClearSession = true;
+                        }
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async clearDemoSession() {
+                    try {
+                        const response = await fetch('/api/auth/clear-demo-session', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        const result = await response.json();
+                        if (result.success) {
+                            window.location.href = result.redirect || '/login';
+                        }
+                    } catch (error) {
+                        console.error('Error clearing session:', error);
+                        // Fallback - redirect anyway
+                        window.location.href = '/login';
+                    }
+                },
+                
+                goToDashboard() {
+                    window.location.href = '/dashboard';
+                }
+            };
+        }
+    </script>
+</body>
+</html>

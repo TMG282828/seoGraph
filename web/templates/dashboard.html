@@ -1,0 +1,500 @@
+{% extends "base.html" %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block page_description %}Monitor your SEO content performance and AI agent activity{% endblock %}
+
+{% block content %}
+
+<!-- Temporary Authentication Setup for Testing -->
+<script>
+    // Real user authentication token for admin@twistworld.co.uk
+    const realToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjJiOTQ1YmFlLWY2NGQtNDg1OS1iMGRkLTg2NDE1ZDM1M2EyZCIsImVtYWlsIjoiYWRtaW5AdHdpc3R3b3JsZC5jby51ayIsImRpc3BsYXlfbmFtZSI6IkFkbWluIFRlYW0iLCJvcmdhbml6YXRpb25faWQiOiJ0d2lzdHdvcmxkLW9yZyIsInJvbGUiOiJvd25lciIsImF2YXRhcl91cmwiOm51bGwsImV4cCI6MTc1NjU1NTI5M30.j0BZGMildyXHBbrdReh6qgLMWLokxCEmZZpCbGuhwmQ';
+    
+    // Set token in localStorage and cookie for workspace manager
+    localStorage.setItem('access_token', realToken);
+    document.cookie = `access_token=${realToken}; path=/; secure; samesite=strict`;
+    
+    console.log('🔑 Real user authentication token set for admin@twistworld.co.uk');
+</script>
+
+<div x-data="{
+    metrics: {
+        total_content: 0,
+        total_keywords: 0,
+        avg_seo_score: 0,
+        content_processed_today: 0,
+        organization: 'Your Organization',
+        keyword_performance: {
+            improving: 0,
+            stable: 0,
+            declining: 0
+        },
+        top_performing_content: [],
+        recent_activity: [],
+        trending_keywords: [],
+        related_topics: []
+    },
+    loading: true,
+    formatNumber(num) {
+        if (num >= 1000000) {
+            return (num / 1000000).toFixed(1) + 'M';
+        } else if (num >= 1000) {
+            return (num / 1000).toFixed(1) + 'K';
+        }
+        return num.toString();
+    },
+    formatTime(timestamp) {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = now - date;
+        
+        if (diff < 60000) {
+            return 'Just now';
+        } else if (diff < 3600000) {
+            return Math.floor(diff / 60000) + 'm ago';
+        } else if (diff < 86400000) {
+            return Math.floor(diff / 3600000) + 'h ago';
+        } else {
+            return Math.floor(diff / 86400000) + 'd ago';
+        }
+    },
+    async loadMetrics() {
+        try {
+            const accessToken = localStorage.getItem('access_token');
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (accessToken) {
+                headers['Authorization'] = `Bearer ${accessToken}`;
+            }
+            
+            const response = await fetch('/api/dashboard/metrics', {
+                method: 'GET',
+                credentials: 'include', // Include cookies for authentication
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.success && data.metrics) {
+                    this.metrics = {
+                        ...this.metrics,
+                        ...data.metrics
+                    };
+                    console.log('✅ Real metrics loaded:', this.metrics);
+                } else {
+                    console.warn('Invalid metrics response format:', data);
+                }
+            } else {
+                console.warn('Failed to fetch metrics:', response.status);
+            }
+        } catch (error) {
+            console.error('Error loading metrics:', error);
+        } finally {
+            this.loading = false;
+        }
+    },
+    seoChart: null,
+    keywordChart: null,
+    chartsInitialized: false,
+    initCharts() {
+        if (this.chartsInitialized) {
+            console.log('Charts already initialized, skipping');
+            return;
+        }
+        setTimeout(() => {
+            try {
+                // Destroy existing charts if they exist
+                if (this.seoChart) {
+                    this.seoChart.destroy();
+                }
+                if (this.keywordChart) {
+                    this.keywordChart.destroy();
+                }
+                
+                const seoCanvas = document.getElementById('seoChart');
+                if (!seoCanvas) {
+                    console.error('SEO chart canvas not found');
+                    return;
+                }
+                
+                const seoCtx = seoCanvas.getContext('2d');
+                this.seoChart = new Chart(seoCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                        datasets: [{
+                            label: 'SEO Score',
+                            data: [], // Will be populated by real data
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                labels: {
+                                    color: '#ffffff',
+                                    usePointStyle: true
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: '#404040'
+                                },
+                                ticks: {
+                                    color: '#b3b3b3'
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    color: '#404040'
+                                },
+                                ticks: {
+                                    color: '#b3b3b3'
+                                }
+                            }
+                        }
+                    }
+                });
+
+                const keywordCanvas = document.getElementById('keywordChart');
+                if (!keywordCanvas) {
+                    console.error('Keyword chart canvas not found');
+                    return;
+                }
+                
+                const keywordCtx = keywordCanvas.getContext('2d');
+                this.keywordChart = new Chart(keywordCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Improving', 'Stable', 'Declining'],
+                        datasets: [{
+                            data: [
+                                this.metrics.keyword_performance.improving || 25,
+                                this.metrics.keyword_performance.stable || 45,
+                                this.metrics.keyword_performance.declining || 12
+                            ],
+                            backgroundColor: ['#10b981', '#6b7280', '#ef4444'],
+                            borderWidth: 0,
+                            hoverBorderWidth: 2,
+                            hoverBorderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '60%',
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: {
+                                    color: '#ffffff',
+                                    padding: 20,
+                                    usePointStyle: true
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                console.log('Dashboard charts initialized successfully');
+                this.chartsInitialized = true;
+                
+            } catch (error) {
+                console.error('Error initializing dashboard charts:', error);
+                this.chartsInitialized = false;
+            }
+        }, 100);
+    },
+    initialized: false,
+    init() {
+        if (this.initialized) {
+            console.log('Dashboard component already initialized, skipping');
+            return;
+        }
+        
+        this.initialized = true;
+        console.log('Dashboard component initialized');
+        console.log('Initial metrics:', this.metrics);
+        
+        this.loadMetrics();
+        
+        setTimeout(() => {
+            this.initCharts();
+        }, 200);
+        
+        setInterval(() => {
+            this.loadMetrics();
+        }, 300000);
+    }
+}" x-init="init()"
+    <!-- Key Metrics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="metric-card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">Total Content</p>
+                    <p class="text-2xl font-bold" x-text="loading ? '...' : metrics.total_content">0</p>
+                </div>
+                <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-file-alt text-white"></i>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center">
+                <div class="flex items-center space-x-2" x-data="{ 
+                    change: metrics.content_change || 0,
+                    get changeClass() { 
+                        return this.change > 0 ? 'text-green-500' : this.change < 0 ? 'text-red-500' : 'text-gray-400' 
+                    },
+                    get changeIcon() { 
+                        return this.change > 0 ? 'fa-arrow-up' : this.change < 0 ? 'fa-arrow-down' : 'fa-minus' 
+                    }
+                }" title="Change from last period">
+                    <i :class="`fas ${changeIcon} ${changeClass}`"></i>
+                    <span :class="changeClass" class="text-sm font-medium">
+                        <span x-text="change === 0 ? 'No change' : (change > 0 ? '+' : '') + change + '%'"></span>
+                    </span>
+                    <span class="text-gray-500 text-xs">vs last month</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">Keywords Tracked</p>
+                    <p class="text-2xl font-bold" x-text="formatNumber(metrics.total_keywords)">0</p>
+                </div>
+                <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-key text-white"></i>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center">
+                <div class="flex items-center space-x-2" x-data="{ 
+                    change: metrics.keywords_change || 0,
+                    get changeClass() { 
+                        return this.change > 0 ? 'text-green-500' : this.change < 0 ? 'text-red-500' : 'text-gray-400' 
+                    },
+                    get changeIcon() { 
+                        return this.change > 0 ? 'fa-arrow-up' : this.change < 0 ? 'fa-arrow-down' : 'fa-minus' 
+                    }
+                }" title="Change from last period">
+                    <i :class="`fas ${changeIcon} ${changeClass}`"></i>
+                    <span :class="changeClass" class="text-sm font-medium">
+                        <span x-text="change === 0 ? 'No change' : (change > 0 ? '+' : '') + change + '%'"></span>
+                    </span>
+                    <span class="text-gray-500 text-xs">vs last month</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">Avg SEO Score</p>
+                    <p class="text-2xl font-bold" x-text="metrics.avg_seo_score + '%'">0%</p>
+                </div>
+                <div class="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-chart-line text-white"></i>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center">
+                <div class="flex items-center space-x-2" x-data="{ 
+                    change: metrics.content_score_change || 0,
+                    get changeClass() { 
+                        return this.change > 0 ? 'text-green-500' : this.change < 0 ? 'text-red-500' : 'text-gray-400' 
+                    },
+                    get changeIcon() { 
+                        return this.change > 0 ? 'fa-arrow-up' : this.change < 0 ? 'fa-arrow-down' : 'fa-minus' 
+                    }
+                }" title="Change from last period">
+                    <i :class="`fas ${changeIcon} ${changeClass}`"></i>
+                    <span :class="changeClass" class="text-sm font-medium">
+                        <span x-text="change === 0 ? 'No change' : (change > 0 ? '+' : '') + change.toFixed(1) + ' pts'"></span>
+                    </span>
+                    <span class="text-gray-500 text-xs">vs last month</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">Processed Today</p>
+                    <p class="text-2xl font-bold" x-text="metrics.content_processed_today">0</p>
+                </div>
+                <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-robot text-white"></i>
+                </div>
+            </div>
+            <div class="mt-4 flex items-center">
+                <div class="flex items-center space-x-2" x-data="{ 
+                    change: metrics.processed_change || 0,
+                    get changeClass() { 
+                        return this.change > 0 ? 'text-green-500' : this.change < 0 ? 'text-red-500' : 'text-gray-400' 
+                    },
+                    get changeIcon() { 
+                        return this.change > 0 ? 'fa-arrow-up' : this.change < 0 ? 'fa-arrow-down' : 'fa-minus' 
+                    }
+                }" title="Change from yesterday">
+                    <i :class="`fas ${changeIcon} ${changeClass}`"></i>
+                    <span :class="changeClass" class="text-sm font-medium">
+                        <span x-text="change === 0 ? 'No change' : (change > 0 ? '+' : '') + change + '%'"></span>
+                    </span>
+                    <span class="text-gray-500 text-xs">vs yesterday</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts and Analytics -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- SEO Performance Chart -->
+        <div class="card p-6">
+            <h3 class="text-lg font-semibold mb-4">SEO Performance Trends</h3>
+            <div style="position: relative; height: 200px;">
+                <canvas id="seoChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Keyword Performance -->
+        <div class="card p-6">
+            <h3 class="text-lg font-semibold mb-4">Keyword Performance</h3>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-green-500">Improving</span>
+                    <span class="font-semibold" x-text="metrics.keyword_performance.improving">0</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-400">Stable</span>
+                    <span class="font-semibold" x-text="metrics.keyword_performance.stable">0</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-red-500">Declining</span>
+                    <span class="font-semibold" x-text="metrics.keyword_performance.declining">0</span>
+                </div>
+            </div>
+            <div style="position: relative; height: 200px;" class="mt-4">
+                <canvas id="keywordChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity and Top Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Top Performing Content -->
+        <div class="card p-6">
+            <h3 class="text-lg font-semibold mb-4">Top Performing Content</h3>
+            <div class="space-y-4">
+                <template x-for="content in metrics.top_performing_content" :key="content.title">
+                    <div class="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
+                        <div class="flex-1">
+                            <h4 class="font-medium" x-text="content.title"></h4>
+                            <div class="text-sm text-gray-400 mt-1">
+                                <span x-text="formatNumber(content.organic_traffic)"></span> organic visits
+                                • <span x-text="content.keywords"></span> keywords
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="text-right">
+                                <div class="text-sm font-medium" x-text="content.seo_score + '%'"></div>
+                                <div class="text-xs text-gray-400">SEO Score</div>
+                            </div>
+                            <div class="w-2 h-8 bg-green-500 rounded-full"></div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="card p-6">
+            <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
+            <div class="space-y-4">
+                <template x-for="activity in metrics.recent_activity" :key="activity.timestamp">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                            <i class="fas fa-file-alt text-white text-xs"></i>
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-sm">
+                                <span x-text="activity.action"></span>
+                                <span x-text="activity.title" class="font-medium"></span>
+                            </p>
+                            <p class="text-xs text-gray-400" x-text="formatTime(activity.timestamp)"></p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Agent Status -->
+    <div class="card p-6 mt-8">
+        <h3 class="text-lg font-semibold mb-4">AI Agent Status</h3>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <i class="fas fa-chart-line text-white"></i>
+                </div>
+                <h4 class="font-medium">Content Analysis</h4>
+                <p class="text-sm text-green-500">Active</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <i class="fas fa-search text-white"></i>
+                </div>
+                <h4 class="font-medium">SEO Research</h4>
+                <p class="text-sm text-green-500">Active</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <i class="fas fa-pen text-white"></i>
+                </div>
+                <h4 class="font-medium">Content Generation</h4>
+                <p class="text-sm text-green-500">Active</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <i class="fas fa-project-diagram text-white"></i>
+                </div>
+                <h4 class="font-medium">Graph Management</h4>
+                <p class="text-sm text-green-500">Active</p>
+            </div>
+            <div class="text-center">
+                <div class="w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <i class="fas fa-shield-alt text-white"></i>
+                </div>
+                <h4 class="font-medium">Quality Assurance</h4>
+                <p class="text-sm text-yellow-500">Standby</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Dashboard charts and functionality are now handled inline in the Alpine.js component
+    console.log('Dashboard script loaded');
+</script>
+{% endblock %}

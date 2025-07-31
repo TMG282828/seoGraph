@@ -1,0 +1,455 @@
+<!-- SERP Content Recommendations Component -->
+<div class="card p-4 mb-6 border-l-4 border-green-500" x-data="serpContentRecommendations()" x-init="initSERPRecommendations()" x-show="hasRecommendations || showRecommendations">
+    <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center">
+            <i class="fas fa-search-plus text-green-500 mr-2"></i>
+            <h4 class="font-semibold text-sm">SERP Content Opportunities</h4>
+            <span class="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full" x-text="recommendations.length + ' opportunities'"></span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <span class="text-xs text-gray-500" x-text="'Score: ' + totalOpportunityScore.toFixed(0)"></span>
+            <button @click="showDetails = !showDetails" class="text-sm text-gray-500 hover:text-green-500">
+                <i class="fas" :class="showDetails ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="flex items-center justify-between mb-3">
+        <div class="flex space-x-2 text-xs">
+            <button @click="filterBy = 'all'" 
+                    :class="filterBy === 'all' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                    class="px-2 py-1 rounded">
+                All (<span x-text="recommendations.length"></span>)
+            </button>
+            <button @click="filterBy = 'high'" 
+                    :class="filterBy === 'high' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                    class="px-2 py-1 rounded">
+                High Priority (<span x-text="recommendations.filter(r => r.priority === 'high').length"></span>)
+            </button>
+            <button @click="filterBy = 'immediate'" 
+                    :class="filterBy === 'immediate' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                    class="px-2 py-1 rounded">
+                Immediate (<span x-text="recommendations.filter(r => r.timeline === 'immediate').length"></span>)
+            </button>
+        </div>
+        
+        <div class="flex space-x-1">
+            <button @click="refreshRecommendations()" 
+                    class="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                    :disabled="isLoading">
+                <i class="fas fa-sync-alt" :class="{'fa-spin': isLoading}"></i>
+            </button>
+            <button @click="analyzeNewKeywords()" 
+                    class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                <i class="fas fa-plus mr-1"></i>Analyze
+            </button>
+        </div>
+    </div>
+    
+    <!-- Recommendations List -->
+    <div x-show="showDetails" x-transition class="space-y-2">
+        <template x-for="recommendation in filteredRecommendations" :key="recommendation.keyword">
+            <div class="border rounded-lg p-3 hover:bg-gray-50 transition-colors" 
+                 style="background-color: var(--bg-secondary); border-color: var(--border-color);">
+                
+                <!-- Recommendation Header -->
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center">
+                        <span class="font-medium text-sm" x-text="recommendation.keyword"></span>
+                        <span class="ml-2 px-2 py-1 text-xs rounded-full" 
+                              :class="getPriorityClass(recommendation.priority)"
+                              x-text="recommendation.priority"></span>
+                        <span class="ml-2 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded"
+                              x-text="recommendation.recommended_content_type.replace('_', ' ')"></span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-gray-500" x-text="'Score: ' + recommendation.opportunity_score"></span>
+                        <button @click="generateContentForKeyword(recommendation.keyword, recommendation.recommended_content_type)" 
+                                class="text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700">
+                            Generate
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Metrics Bar -->
+                <div class="grid grid-cols-4 gap-2 mb-2 text-xs">
+                    <div class="text-center">
+                        <div class="font-medium text-blue-600" 
+                             x-text="recommendation.current_position || 'N/A'"></div>
+                        <div class="text-gray-500">Position</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-medium text-green-600" 
+                             x-text="recommendation.estimated_traffic"></div>
+                        <div class="text-gray-500">Traffic</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-medium text-orange-600" 
+                             x-text="recommendation.difficulty"></div>
+                        <div class="text-gray-500">Difficulty</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-medium text-purple-600" 
+                             x-text="recommendation.timeline"></div>
+                        <div class="text-gray-500">Timeline</div>
+                    </div>
+                </div>
+                
+                <!-- Content Gaps -->
+                <div x-show="recommendation.content_gaps && recommendation.content_gaps.length > 0" class="mt-2">
+                    <div class="text-xs text-gray-600 mb-1">Content Gaps:</div>
+                    <div class="flex flex-wrap gap-1">
+                        <template x-for="gap in recommendation.content_gaps.slice(0, 3)" :key="gap">
+                            <span class="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded" x-text="gap"></span>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- Quick Actions -->
+                <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-200">
+                    <button @click="viewKeywordAnalysis(recommendation.keyword)" 
+                            class="text-xs text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-chart-line mr-1"></i>View Analysis
+                    </button>
+                    
+                    <div class="flex space-x-1">
+                        <button @click="addToContentCalendar(recommendation)" 
+                                class="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200">
+                            <i class="fas fa-calendar-plus mr-1"></i>Schedule
+                        </button>
+                        <button @click="startPRPWorkflowForKeyword(recommendation.keyword)" 
+                                class="text-xs px-2 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200">
+                            <i class="fas fa-project-diagram mr-1"></i>PRP
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- No Recommendations -->
+        <div x-show="filteredRecommendations.length === 0 && !isLoading" class="text-center py-4 text-gray-500">
+            <i class="fas fa-search text-2xl mb-2"></i>
+            <p class="text-sm">No SERP opportunities found</p>
+            <button @click="analyzeNewKeywords()" class="mt-2 px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700">
+                Analyze Keywords
+            </button>
+        </div>
+        
+        <!-- Loading State -->
+        <div x-show="isLoading" class="text-center py-4">
+            <i class="fas fa-spinner fa-spin text-gray-400 text-2xl mb-2"></i>
+            <p class="text-sm text-gray-500">Analyzing SERP opportunities...</p>
+        </div>
+    </div>
+    
+    <!-- Summary Stats -->
+    <div x-show="!showDetails && hasRecommendations" class="grid grid-cols-3 gap-3 mt-3">
+        <div class="text-center p-2 bg-green-50 rounded">
+            <div class="text-lg font-bold text-green-600" x-text="recommendations.filter(r => r.priority === 'high').length"></div>
+            <div class="text-xs text-green-600">High Priority</div>
+        </div>
+        <div class="text-center p-2 bg-blue-50 rounded">
+            <div class="text-lg font-bold text-blue-600" x-text="recommendations.reduce((sum, r) => sum + (r.estimated_traffic || 0), 0)"></div>
+            <div class="text-xs text-blue-600">Est. Traffic</div>
+        </div>
+        <div class="text-center p-2 bg-purple-50 rounded">
+            <div class="text-lg font-bold text-purple-600" x-text="recommendations.filter(r => r.timeline === 'immediate').length"></div>
+            <div class="text-xs text-purple-600">Immediate</div>
+        </div>
+    </div>
+</div>
+
+<!-- Keyword Analysis Modal -->
+<div x-show="showAnalysisModal" 
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+     @click.away="showAnalysisModal = false">
+    
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto"
+         @click.stop>
+        
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between p-4 border-b">
+            <div>
+                <h3 class="text-lg font-semibold" x-text="'Keyword Analysis: ' + selectedKeyword"></h3>
+                <p class="text-sm text-gray-600">SERP opportunity analysis</p>
+            </div>
+            <button @click="showAnalysisModal = false" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <!-- Modal Content -->
+        <div class="p-4" x-show="keywordAnalysis">
+            <!-- Opportunity Metrics -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="text-center p-3 bg-blue-50 rounded">
+                    <div class="text-xl font-bold text-blue-600" x-text="keywordAnalysis?.analysis?.current_position || 'N/A'"></div>
+                    <div class="text-xs text-blue-600">Current Position</div>
+                </div>
+                <div class="text-center p-3 bg-green-50 rounded">
+                    <div class="text-xl font-bold text-green-600" x-text="Math.round(keywordAnalysis?.analysis?.opportunity_score || 0)"></div>
+                    <div class="text-xs text-green-600">Opportunity Score</div>
+                </div>
+                <div class="text-center p-3 bg-orange-50 rounded">
+                    <div class="text-xl font-bold text-orange-600" x-text="keywordAnalysis?.analysis?.estimated_traffic || 0"></div>
+                    <div class="text-xs text-orange-600">Est. Traffic</div>
+                </div>
+                <div class="text-center p-3 bg-purple-50 rounded">
+                    <div class="text-xl font-bold text-purple-600" x-text="keywordAnalysis?.serp_data?.search_volume || 'N/A'"></div>
+                    <div class="text-xs text-purple-600">Search Volume</div>
+                </div>
+            </div>
+            
+            <!-- Content Recommendations -->
+            <div class="mb-4" x-show="keywordAnalysis?.analysis?.content_gaps">
+                <h4 class="font-medium mb-2">Content Gaps to Address</h4>
+                <div class="space-y-2">
+                    <template x-for="gap in keywordAnalysis?.analysis?.content_gaps || []" :key="gap">
+                        <div class="flex items-center p-2 bg-yellow-50 rounded">
+                            <i class="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
+                            <span class="text-sm" x-text="gap"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- Generation Actions -->
+            <div class="flex justify-between pt-4 border-t">
+                <button @click="showAnalysisModal = false" 
+                        class="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+                    Close
+                </button>
+                
+                <div class="flex space-x-2">
+                    <button @click="startPRPWorkflowForKeyword(selectedKeyword)" 
+                            class="px-4 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                        <i class="fas fa-project-diagram mr-2"></i>Start PRP Workflow
+                    </button>
+                    <button @click="generateContentForKeyword(selectedKeyword, keywordAnalysis?.analysis?.recommended_content_type)" 
+                            class="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700">
+                        <i class="fas fa-magic mr-2"></i>Generate Content
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function serpContentRecommendations() {
+    return {
+        // State
+        recommendations: [],
+        hasRecommendations: false,
+        showRecommendations: false,
+        showDetails: false,
+        isLoading: false,
+        filterBy: 'all',
+        totalOpportunityScore: 0,
+        
+        // Modal state
+        showAnalysisModal: false,
+        selectedKeyword: '',
+        keywordAnalysis: null,
+        
+        // Configuration
+        domain: 'example.com', // Would be dynamic based on user's domain
+        
+        // Initialization
+        async initSERPRecommendations() {
+            await this.loadRecommendations();
+            // Auto-refresh every 10 minutes
+            setInterval(() => this.loadRecommendations(), 600000);
+        },
+        
+        // Data Loading
+        async loadRecommendations() {
+            try {
+                const response = await fetch(`/api/serp-content/recommendations/${this.domain}?limit=20`);
+                if (!response.ok) {
+                    console.log('SERP Content Integration not available');
+                    return;
+                }
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.recommendations = data.recommendations || [];
+                    this.totalOpportunityScore = data.total_opportunity_score || 0;
+                    this.hasRecommendations = this.recommendations.length > 0;
+                    this.showRecommendations = this.hasRecommendations;
+                }
+                
+            } catch (error) {
+                console.warn('Failed to load SERP recommendations:', error);
+                this.hasRecommendations = false;
+            }
+        },
+        
+        async refreshRecommendations() {
+            this.isLoading = true;
+            await this.loadRecommendations();
+            this.isLoading = false;
+        },
+        
+        // Filtering
+        get filteredRecommendations() {
+            if (this.filterBy === 'all') {
+                return this.recommendations;
+            } else if (this.filterBy === 'high') {
+                return this.recommendations.filter(r => r.priority === 'high');
+            } else if (this.filterBy === 'immediate') {
+                return this.recommendations.filter(r => r.timeline === 'immediate');
+            }
+            return this.recommendations;
+        },
+        
+        // Actions
+        async generateContentForKeyword(keyword, contentType = 'blog_post') {
+            try {
+                // Integration with main content studio
+                if (window.contentStudio) {
+                    const studio = window.contentStudio();
+                    
+                    // Add SERP context message
+                    studio.chatMessages.push({
+                        id: Date.now(),
+                        type: 'system',
+                        content: `🎯 **SERP-Optimized Content Generation**\n\nGenerating ${contentType.replace('_', ' ')} for keyword: **${keyword}**\n\nThis content will be optimized based on SERP analysis including:\n• Current ranking position\n• Content gaps identified\n• Competitor insights\n• Traffic potential`,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    // Set the chat input with SERP-optimized prompt
+                    studio.chatInput = `Generate a ${contentType.replace('_', ' ')} optimized for the keyword "${keyword}" based on SERP analysis. Include SEO optimization, target the identified content gaps, and structure for ranking improvement.`;
+                    
+                    // Trigger generation
+                    await studio.sendChatMessage();
+                    
+                    // Scroll to chat area
+                    studio.scrollToBottom();
+                }
+                
+                showToast(`Started SERP-optimized content generation for "${keyword}"`, 'success');
+                
+            } catch (error) {
+                console.error('Failed to start content generation:', error);
+                showToast('Failed to start content generation', 'error');
+            }
+        },
+        
+        async viewKeywordAnalysis(keyword) {
+            try {
+                this.selectedKeyword = keyword;
+                this.showAnalysisModal = true;
+                
+                // Load detailed analysis
+                const response = await fetch(`/api/serp-content/keyword-analysis/${this.domain}/${encodeURIComponent(keyword)}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.keywordAnalysis = data;
+                } else {
+                    throw new Error(data.error || 'Analysis failed');
+                }
+                
+            } catch (error) {
+                console.error('Failed to load keyword analysis:', error);
+                showToast('Failed to load keyword analysis', 'error');
+                this.showAnalysisModal = false;
+            }
+        },
+        
+        async startPRPWorkflowForKeyword(keyword) {
+            try {
+                if (window.contentStudio) {
+                    const studio = window.contentStudio();
+                    
+                    // Enable PRP workflow if not already enabled
+                    if (!studio.prpWorkflowMode) {
+                        studio.enablePRPWorkflow();
+                    }
+                    
+                    // Start PRP workflow with SERP context
+                    const workflowId = await studio.startPRPWorkflow(
+                        `SERP-Optimized Content for "${keyword}"`,
+                        `Create comprehensive, SEO-optimized content targeting the keyword "${keyword}" based on SERP analysis data. Focus on addressing identified content gaps and improving ranking position.`
+                    );
+                    
+                    if (workflowId) {
+                        showToast(`Started PRP workflow for "${keyword}"`, 'success');
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Failed to start PRP workflow:', error);
+                showToast('Failed to start PRP workflow', 'error');
+            }
+        },
+        
+        async addToContentCalendar(recommendation) {
+            // This would integrate with a content calendar system
+            const calendarEntry = {
+                keyword: recommendation.keyword,
+                content_type: recommendation.recommended_content_type,
+                priority: recommendation.priority,
+                timeline: recommendation.timeline,
+                opportunity_score: recommendation.opportunity_score,
+                added_date: new Date().toISOString()
+            };
+            
+            // For now, just show success message
+            showToast(`Added "${recommendation.keyword}" to content calendar`, 'success');
+        },
+        
+        async analyzeNewKeywords() {
+            const keywords = prompt('Enter keywords to analyze (comma-separated):');
+            if (!keywords) return;
+            
+            try {
+                const keywordList = keywords.split(',').map(k => k.trim()).filter(k => k);
+                
+                const response = await fetch('/api/serp-content/analyze-opportunities', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        domain: this.domain,
+                        keywords: keywordList,
+                        days_back: 30
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    await this.loadRecommendations(); // Refresh recommendations
+                    showToast(`Analyzed ${keywordList.length} keywords`, 'success');
+                } else {
+                    throw new Error(data.error || 'Analysis failed');
+                }
+                
+            } catch (error) {
+                console.error('Failed to analyze keywords:', error);
+                showToast('Failed to analyze keywords', 'error');
+            }
+        },
+        
+        // Utility Functions
+        getPriorityClass(priority) {
+            const classes = {
+                'high': 'bg-red-100 text-red-800',
+                'medium': 'bg-yellow-100 text-yellow-800',
+                'low': 'bg-green-100 text-green-800'
+            };
+            return classes[priority] || 'bg-gray-100 text-gray-800';
+        }
+    }
+}
+</script>

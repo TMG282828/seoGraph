@@ -1,0 +1,171 @@
+version: '3.8'
+
+services:
+  # SerpBear Rank Tracking Service
+  serpbear:
+    image: towfiqi/serpbear:latest
+    container_name: seo-serpbear
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=file:./data/database.db
+      - NEXTAUTH_SECRET=${SERPBEAR_AUTH_SECRET:-your-production-secret-key}
+      - NEXTAUTH_URL=${SERPBEAR_BASE_URL:-http://localhost:3001}
+      - NEXT_PUBLIC_APP_URL=http://localhost:3001
+      - USER=${SERPBEAR_USERNAME:-admin}
+      - PASSWORD=${SERPBEAR_PASSWORD:-serpbear123}
+      - SECRET=${SERPBEAR_AUTH_SECRET:-4715aed3216f7b0a38e6b534a958362654e96d10fbc04700770d572af3dce43625dd}
+      - APIKEY=${SERPBEAR_API_KEY:-5saedXklbslhnapihe2pihp3pih4fdnakhjwq5}
+      - NODE_ENV=production
+    volumes:
+      - serpbear-data:/app/data
+    networks:
+      - seo-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  seo-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    container_name: seo-content-knowledge-graph
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.production
+    environment:
+      - ENVIRONMENT=production
+      - PYTHONPATH=/app
+      - SERPBEAR_BASE_URL=http://serpbear:3000
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/static/uploads
+    networks:
+      - seo-network
+    depends_on:
+      - serpbear
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    container_name: seo-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./static:/var/www/static:ro
+      - ./logs/nginx:/var/log/nginx
+    networks:
+      - seo-network
+    depends_on:
+      - seo-app
+
+  # Optional: Add Redis for caching (recommended for production)
+  redis:
+    image: redis:7-alpine
+    container_name: seo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - seo-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # SearXNG Search Engine for SERP Data
+  searxng:
+    image: searxng/searxng:latest
+    container_name: seo-searxng
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-your-secret-key-for-searxng-production}
+      - SEARXNG_PORT=8080
+      - SEARXNG_BIND_ADDRESS=0.0.0.0
+    volumes:
+      - searxng-data:/etc/searxng
+    networks:
+      - seo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # Crawl4AI Service for Advanced SERP Parsing
+  crawl4ai:
+    image: unclecode/crawl4ai:latest
+    container_name: seo-crawl4ai
+    restart: unless-stopped
+    ports:
+      - "11235:11235"
+    environment:
+      - CRAWL4AI_API_TOKEN=${CRAWL4AI_API_TOKEN:-your-crawl4ai-token}
+      - CRAWL4AI_ENABLE_CACHE=true
+      - CRAWL4AI_CACHE_DIR=/app/cache
+    volumes:
+      - crawl4ai-cache:/app/cache
+      - crawl4ai-data:/app/data
+    networks:
+      - seo-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11235/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: Monitoring with Prometheus (for production insights)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: seo-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - seo-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+volumes:
+  serpbear-data:
+  redis-data:
+  searxng-data:
+  crawl4ai-cache:
+  crawl4ai-data:
+  prometheus-data:
+
+networks:
+  seo-network:
+    driver: bridge
