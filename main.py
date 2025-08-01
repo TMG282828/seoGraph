@@ -46,11 +46,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import and expose the FastAPI app for ASGI compatibility
+try:
+    from web.main import app
+    logger.info("✅ FastAPI app imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import FastAPI app: {e}")
+    app = None
+
 def main():
     """Start the FastAPI server."""
     try:
-        # Import the FastAPI app
-        from web.main import app
+        # Use the already imported FastAPI app
+        if app is None:
+            logger.error("❌ FastAPI app not available")
+            sys.exit(1)
         
         # Get port from environment (Replit sets this automatically)
         port = int(os.getenv("PORT", 8000))

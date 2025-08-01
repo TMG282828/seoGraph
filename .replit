@@ -8,6 +8,9 @@ channel = "stable-24_05"
 [deployment]
 run = ["sh", "-c", "python main.py"]
 
+# Alternative ASGI configuration if needed
+# run = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+
 [languages]
 
 [languages.python3]
