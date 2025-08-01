@@ -3,6 +3,8 @@ OpenTelemetry Performance Monitoring Integration.
 
 Provides comprehensive performance monitoring, tracing, and metrics collection
 for the SEO Content Knowledge Graph System using OpenTelemetry standards.
+
+Note: OpenTelemetry is optional. If not installed, monitoring will be disabled gracefully.
 """
 
 import os
@@ -14,23 +16,98 @@ from contextlib import asynccontextmanager
 from functools import wraps
 import structlog
 
-from opentelemetry import trace, metrics
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
-from opentelemetry.instrumentation.neo4j import Neo4jInstrumentor
-from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.trace.status import Status, StatusCode
-from opentelemetry.util.http import get_excluded_urls
+# Optional OpenTelemetry imports - gracefully handle missing dependencies
+try:
+    from opentelemetry import trace, metrics
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.prometheus import PrometheusMetricReader
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+    from opentelemetry.instrumentation.requests import RequestsInstrumentor
+    from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.sdk.metrics import MeterProvider
+    
+    # Optional instrumentors that may not be available
+    try:
+        from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
+    except ImportError:
+        Psycopg2Instrumentor = None
+    
+    try:
+        from opentelemetry.instrumentation.neo4j import Neo4jInstrumentor
+    except ImportError:
+        Neo4jInstrumentor = None
+        
+    OPENTELEMETRY_AVAILABLE = True
+    
+except ImportError as e:
+    # OpenTelemetry not available - create dummy classes for graceful degradation
+    structlog.get_logger(__name__).info(
+        "OpenTelemetry not available - monitoring disabled", 
+        error=str(e)
+    )
+    
+    class DummyTracer:
+        def start_span(self, *args, **kwargs):
+            return DummySpan()
+    
+    class DummySpan:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def set_attribute(self, *args): pass
+        def set_status(self, *args): pass
+        def record_exception(self, *args): pass
+    
+    class DummyMeter:
+        def create_counter(self, *args, **kwargs): return DummyMetric()
+        def create_histogram(self, *args, **kwargs): return DummyMetric()
+        def create_gauge(self, *args, **kwargs): return DummyMetric()
+    
+    class DummyMetric:
+        def add(self, *args, **kwargs): pass
+        def record(self, *args, **kwargs): pass
+        def set(self, *args, **kwargs): pass
+    
+    # Set dummy objects
+    trace = None
+    metrics = None
+    OPENTELEMETRY_AVAILABLE = False
+    OTLPSpanExporter = None
+    OTLPMetricExporter = None
+    PrometheusMetricReader = None
+    JaegerExporter = None
+    FastAPIInstrumentor = None
+    HTTPXClientInstrumentor = None
+    RequestsInstrumentor = None
+    Psycopg2Instrumentor = None
+    Neo4jInstrumentor = None
+    TracerProvider = None
+    BatchSpanProcessor = None
+    ConsoleSpanExporter = None
+    MeterProvider = None
+    Resource = None
+    SERVICE_NAME = None
+    SERVICE_VERSION = None
+    PeriodicExportingMetricReader = None
+    Status = None
+    StatusCode = None
+    get_excluded_urls = None
+
+# Additional imports that may be needed
+if OPENTELEMETRY_AVAILABLE:
+    try:
+        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+        from opentelemetry.trace.status import Status, StatusCode
+        from opentelemetry.util.http import get_excluded_urls
+    except ImportError:
+        PeriodicExportingMetricReader = None
+        Status = None
+        StatusCode = None
+        get_excluded_urls = None
 
 logger = structlog.get_logger(__name__)
 

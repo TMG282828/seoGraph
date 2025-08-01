@@ -1,0 +1,48 @@
+# Optional Advanced Features
+# Install with: pip install -r requirements-optional.txt
+
+# Advanced Monitoring and Observability (Optional)
+langfuse>=2.0.0
+prometheus-client>=0.19.0
+
+# OpenTelemetry Dependencies (Optional - for advanced monitoring)
+opentelemetry-api>=1.21.0
+opentelemetry-sdk>=1.21.0
+opentelemetry-exporter-otlp-proto-grpc>=1.21.0
+opentelemetry-exporter-prometheus>=0.57b0
+opentelemetry-exporter-jaeger-thrift>=1.21.0
+opentelemetry-instrumentation-fastapi>=0.42b0
+opentelemetry-instrumentation-httpx>=0.42b0
+opentelemetry-instrumentation-requests>=0.42b0
+
+# Google Integrations (Optional)
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-api-python-client>=2.100.0
+
+# Advanced Content Processing (Optional)
+pytrends>=4.9.0
+openpyxl>=3.1.0
+
+# Background Tasks (Optional)
+celery>=5.3.0
+schedule>=1.2.0
+
+# Security (Optional)
+passlib[bcrypt]>=1.7.4
+
+# Development Tools (Optional)
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+black>=23.12.0
+ruff>=0.1.0
+mypy>=1.8.0
+pre-commit>=3.6.0
+bandit>=1.7.0
+safety>=2.3.0
+
+# Additional Features (Optional)
+sse-starlette>=2.1.0
+watchdog>=3.0.0
+yaml>=6.0.0
