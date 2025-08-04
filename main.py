@@ -59,6 +59,7 @@ except ImportError as e:
     logger.error("💡 Check the error above and install missing packages")
     
     # Create a minimal fallback app to prevent ASGI errors
+    error_message = str(e)  # Capture error message for use in endpoints
     try:
         from fastapi import FastAPI
         from fastapi.responses import JSONResponse
@@ -72,7 +73,7 @@ except ImportError as e:
                 content={
                     "error": "Service temporarily unavailable",
                     "message": "Missing required dependencies. Please install all requirements.",
-                    "details": str(e)
+                    "details": error_message
                 }
             )
             
@@ -83,7 +84,7 @@ except ImportError as e:
                 content={
                     "status": "unhealthy",
                     "error": "dependency_missing",
-                    "message": str(e)
+                    "message": error_message
                 }
             )
         
