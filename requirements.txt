@@ -4,6 +4,8 @@ openai>=1.0.0
 tiktoken>=0.5.0
 
 # Database Dependencies (Optional - will gracefully degrade if missing)
+sqlalchemy>=2.0.0
+alembic>=1.13.0
 neo4j>=5.0.0
 qdrant-client>=1.8.0
 supabase>=2.0.0
