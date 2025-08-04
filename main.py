@@ -49,10 +49,49 @@ logger = logging.getLogger(__name__)
 # Import and expose the FastAPI app for ASGI compatibility
 try:
     from web.main import app
+    if app is None:
+        logger.error("❌ FastAPI app is None after import")
+        raise ImportError("FastAPI app failed to initialize")
     logger.info("✅ FastAPI app imported successfully")
 except ImportError as e:
     logger.error(f"❌ Failed to import FastAPI app: {e}")
-    app = None
+    logger.error("💡 This usually means a required dependency is missing")
+    logger.error("💡 Check the error above and install missing packages")
+    
+    # Create a minimal fallback app to prevent ASGI errors
+    try:
+        from fastapi import FastAPI
+        from fastapi.responses import JSONResponse
+        
+        app = FastAPI(title="SEO Graph - Dependency Error")
+        
+        @app.get("/")
+        async def dependency_error():
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "error": "Service temporarily unavailable",
+                    "message": "Missing required dependencies. Please install all requirements.",
+                    "details": str(e)
+                }
+            )
+            
+        @app.get("/health")
+        async def health_check():
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "unhealthy",
+                    "error": "dependency_missing",
+                    "message": str(e)
+                }
+            )
+        
+        logger.info("🚨 Created fallback app - please fix dependencies")
+        
+    except Exception as fallback_error:
+        logger.error(f"❌ Could not create fallback app: {fallback_error}")
+        app = None
 
 def main():
     """Start the FastAPI server."""
