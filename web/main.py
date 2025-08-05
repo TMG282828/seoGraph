@@ -325,6 +325,7 @@ logger.info(f"Adding AuthMiddleware: {AuthMiddleware}")
 app.add_middleware(
     AuthMiddleware,
     excluded_paths=[
+        '/',  # Allow root path (handles auth logic internally)
         '/login', 
         '/onboarding', 
         '/api/auth/',  # Allow all auth endpoints
@@ -515,8 +516,24 @@ else:
 # Page routes
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    """Redirect to dashboard."""
-    return RedirectResponse(url="/dashboard")
+    """Root route - redirect based on authentication status."""
+    try:
+        # Check if user has access token
+        access_token = request.cookies.get('access_token')
+        if access_token:
+            # Try to validate token
+            from src.auth.auth_middleware import authenticate_token
+            user_data = await authenticate_token(access_token)
+            if user_data:
+                return RedirectResponse(url="/dashboard")
+        
+        # No valid token, redirect to login
+        return RedirectResponse(url="/login")
+        
+    except Exception as e:
+        logger.error(f"Root route error: {e}")
+        # Fallback to login on any error
+        return RedirectResponse(url="/login")
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
