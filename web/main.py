@@ -144,7 +144,7 @@ except ImportError as e:
     openai_seo_service = MockOpenAIService()
 
 # Import auth services
-from src.auth.google_oauth import google_oauth_service
+# from src.auth.google_oauth import google_oauth_service  # Disabled - app not verified
 from src.database.supabase_client import supabase_client
 from fastapi.responses import RedirectResponse as FastAPIRedirectResponse
 try:
@@ -588,66 +588,7 @@ async def test_workspace_endpoint():
     """Test endpoint to verify workspace routing works."""
     return {"status": "test", "message": "Workspace routing works!", "timestamp": datetime.now().isoformat()}
 
-# Google OAuth routes
-@app.get("/api/auth/google")
-async def google_auth_redirect():
-    """Redirect to Google OAuth authorization."""
-    try:
-        auth_url = google_oauth_service.get_authorization_url()
-        return FastAPIRedirectResponse(url=auth_url)
-    except Exception as e:
-        logger.error(f"Failed to get Google auth URL: {e}")
-        raise HTTPException(status_code=500, detail="Google authentication not available")
-
-@app.get("/api/auth/google/url")
-async def get_google_auth_url():
-    """Get Google OAuth authorization URL."""
-    try:
-        auth_url = google_oauth_service.get_authorization_url()
-        return {"auth_url": auth_url}
-    except Exception as e:
-        logger.error(f"Failed to get Google auth URL: {e}")
-        raise HTTPException(status_code=500, detail="Google authentication not available")
-
-@app.get("/api/auth/google/callback")
-async def google_auth_callback(code: str = None, error: str = None):
-    """Handle Google OAuth callback."""
-    if error:
-        logger.error(f"Google OAuth error: {error}")
-        return FastAPIRedirectResponse(url=f"/login?error=oauth_error")
-    
-    if not code:
-        logger.error("No authorization code received")
-        return FastAPIRedirectResponse(url=f"/login?error=no_code")
-    
-    try:
-        # Exchange code for tokens and user info
-        auth_result = await google_oauth_service.authenticate_user(code)
-        
-        # Set cookies and redirect to dashboard
-        response = FastAPIRedirectResponse(url="/dashboard")
-        response.set_cookie(
-            key="access_token",
-            value=auth_result["access_token"],
-            max_age=86400,  # 24 hours
-            httponly=True,
-            secure=False,  # Set to True in production with HTTPS
-            samesite="lax"
-        )
-        response.set_cookie(
-            key="refresh_token",
-            value=auth_result["refresh_token"],
-            max_age=2592000,  # 30 days
-            httponly=True,
-            secure=False,  # Set to True in production with HTTPS
-            samesite="lax"
-        )
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"Google authentication failed: {e}")
-        return FastAPIRedirectResponse(url=f"/login?error=auth_failed")
+# Google OAuth routes removed - app not verified
 
 @app.post("/api/auth/logout")
 async def logout():
