@@ -225,6 +225,10 @@ from web.api.debug_routes import debug_router
 from web.api.graph_debug import debug_graph_router
 from src.services.serpbear_bridge import router as serp_bridge_router
 
+# Import authentication and organization routes
+from web.api.auth_routes import router as auth_router
+from web.api.organization_routes import router as organization_router
+
 # SERP Content Integration
 try:
     from web.api.serp_content_integration_routes import router as serp_content_router
@@ -300,19 +304,44 @@ templates = Jinja2Templates(directory=str(templates_dir))
 if Path("web/static").exists():
     app.mount("/static", StaticFiles(directory="web/static"), name="static")
 
+# Serve favicon.ico from static directory
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve favicon.ico."""
+    favicon_path = Path("web/static/favicon.ico")
+    if favicon_path.exists():
+        from fastapi.responses import FileResponse
+        return FileResponse(favicon_path)
+    else:
+        raise HTTPException(status_code=404, detail="Favicon not found")
+
 # Global services (initialize once)
 content_service = None
 embedding_service = None
 graph_service = None
 
-# Authentication middleware - temporarily disabled for debugging until production
-# logger.info(f"Adding AuthMiddleware: {AuthMiddleware}")
-# app.add_middleware(
-#     AuthMiddleware,
-#     excluded_paths=['/login', '/onboarding', '/api/auth/', '/api/gsc/', '/api/organizations', '/api/health', '/static/', '/docs', '/openapi.json', '/health']
-# )
-# logger.info("AuthMiddleware added successfully")
-logger.info("AuthMiddleware temporarily disabled - using session-based auth for Google Drive")
+# Authentication middleware
+logger.info(f"Adding AuthMiddleware: {AuthMiddleware}")
+app.add_middleware(
+    AuthMiddleware,
+    excluded_paths=[
+        '/login', 
+        '/onboarding', 
+        '/api/auth/',  # Allow all auth endpoints
+        '/api/gsc/', 
+        '/api/organizations',  # Allow organization creation during onboarding
+        '/api/health', 
+        '/static/', 
+        '/docs', 
+        '/openapi.json', 
+        '/health',
+        '/favicon.ico',  # Add favicon to excluded paths
+        '/_next/',  # Replit might use Next.js paths
+        '/__replit/',  # Replit internal paths
+        '/api/auth/status',  # Allow auth status check
+    ]
+)
+logger.info("AuthMiddleware added successfully")
 
 @app.on_event("startup")
 async def startup_event():
@@ -427,6 +456,8 @@ async def shutdown_event():
 
 # Include API routers
 app.include_router(health_router)  # Health checks first
+app.include_router(auth_router)  # Authentication routes
+app.include_router(organization_router)  # Organization management
 app.include_router(serp_bridge_router)  # Custom SERP bridge
 app.include_router(serpbear_domain_router)  # SerpBear domain management
 app.include_router(seo_router)
